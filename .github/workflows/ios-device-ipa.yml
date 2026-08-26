@@ -1,0 +1,89 @@
+name: CamBridge iOS device IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+      - 'scripts/validate-stage1.ps1'
+      - '.github/workflows/ios-device-ipa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-device-ipa:
+    runs-on: xcode-27
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 27 and verify iOS 27 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode_path="$(find /Applications -type d -name 'Xcode_27*.app' -prune -print | head -n 1)"
+          test -n "$xcode_path"
+          sudo xcode-select -s "$xcode_path/Contents/Developer"
+          xcodebuild -version
+          sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
+          test "$sdk_version" = "27.0"
+          echo "Using iphoneos${sdk_version}"
+
+      - name: Run Stage 1 static validation
+        shell: pwsh
+        run: ./scripts/validate-stage1.ps1
+
+      - name: Run Swift tests on iOS 27 simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project ios/CamBridge/CamBridge.xcodeproj \
+            -scheme CamBridge \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Archive generic iOS device target without Apple signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_path="$RUNNER_TEMP/CamBridge.xcarchive"
+          rm -rf "$archive_path"
+          xcodebuild archive \
+            -project ios/CamBridge/CamBridge.xcodeproj \
+            -scheme CamBridge \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive_path" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM=''
+
+      - name: Package unsigned IPA for Windows Sideloadly
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive_path="$RUNNER_TEMP/CamBridge.xcarchive"
+          app_path="$archive_path/Products/Applications/CamBridge.app"
+          test -d "$app_path"
+          test ! -d "$app_path/_CodeSignature"
+          rm -rf "$RUNNER_TEMP/CamBridge-Payload"
+          mkdir -p "$RUNNER_TEMP/CamBridge-Payload"
+          ditto "$app_path" "$RUNNER_TEMP/CamBridge-Payload/CamBridge.app"
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent \
+            "$RUNNER_TEMP/CamBridge-Payload" \
+            "$RUNNER_TEMP/CamBridge-unsigned.ipa"
+          unzip -l "$RUNNER_TEMP/CamBridge-unsigned.ipa"
+          test -f "$RUNNER_TEMP/CamBridge-unsigned.ipa"
+
+      - name: Upload unsigned IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CamBridge-unsigned-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/CamBridge-unsigned.ipa
+          if-no-files-found: error

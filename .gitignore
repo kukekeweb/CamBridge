@@ -1,0 +1,24 @@
+# macOS and Xcode user-specific state
+.DS_Store
+xcuserdata/
+*.xcuserstate
+
+# Xcode and Swift build output
+DerivedData/
+build/
+.build/
+
+# Distribution and signing artifacts
+*.ipa
+*.xcarchive/
+*.dSYM/
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.cer
+*.key
+
+# Local CI/secret files
+.env
+.env.*
+!.env.example

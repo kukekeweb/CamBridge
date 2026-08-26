@@ -1,0 +1,93 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00100010000000000000001 /* CamBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000001 /* CamBridgeApp.swift */; };
+		A00100010000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000002 /* ContentView.swift */; };
+		A00100010000000000000003 /* CaptureSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000003 /* CaptureSettings.swift */; };
+		A00100010000000000000004 /* CameraFormatDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000004 /* CameraFormatDescriptor.swift */; };
+		A00100010000000000000005 /* CameraFormatSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000005 /* CameraFormatSelector.swift */; };
+		A00100010000000000000006 /* CaptureStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000006 /* CaptureStatistics.swift */; };
+		A00100010000000000000007 /* CameraCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000007 /* CameraCaptureService.swift */; };
+		A00100010000000000000008 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000008 /* CameraPreviewView.swift */; };
+		A00100010000000000000009 /* CameraFormatSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00100010000000000000009 /* CameraFormatSelectorTests.swift */; };
+		A0010001000000000000000A /* CaptureStatisticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001000000000000000A /* CaptureStatisticsTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B00100010000000000000000 /* CamBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CamBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B00100010000000000000001 /* CamBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CamBridgeApp.swift; sourceTree = "<group>"; };
+		B00100010000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B00100010000000000000003 /* CaptureSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSettings.swift; sourceTree = "<group>"; };
+		B00100010000000000000004 /* CameraFormatDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFormatDescriptor.swift; sourceTree = "<group>"; };
+		B00100010000000000000005 /* CameraFormatSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFormatSelector.swift; sourceTree = "<group>"; };
+		B00100010000000000000006 /* CaptureStatistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureStatistics.swift; sourceTree = "<group>"; };
+		B00100010000000000000007 /* CameraCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCaptureService.swift; sourceTree = "<group>"; };
+		B00100010000000000000008 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		B00100010000000000000009 /* CameraFormatSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraFormatSelectorTests.swift; sourceTree = "<group>"; };
+		B0010001000000000000000A /* CaptureStatisticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureStatisticsTests.swift; sourceTree = "<group>"; };
+		B0010001000000000000000B /* CamBridgeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CamBridgeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0010001000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C00100010000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+		C00100010000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D00100010000000000000000 = {isa = PBXGroup; children = (D00100010000000000000001, D00100010000000000000002, D00100010000000000000003,); sourceTree = "<group>"; };
+		D00100010000000000000001 /* CamBridgeApp */ = {isa = PBXGroup; children = (B00100010000000000000001, B00100010000000000000002, B00100010000000000000003, B00100010000000000000004, B00100010000000000000005, B00100010000000000000006, B00100010000000000000007, B00100010000000000000008, B0010001000000000000000C,); path = CamBridgeApp; sourceTree = "<group>"; };
+		D00100010000000000000002 /* CamBridgeTests */ = {isa = PBXGroup; children = (B00100010000000000000009, B0010001000000000000000A,); path = CamBridgeTests; sourceTree = "<group>"; };
+		D00100010000000000000003 /* Products */ = {isa = PBXGroup; children = (B00100010000000000000000, B0010001000000000000000B,); name = Products; sourceTree = "<group>"; };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E00100010000000000000001 /* CamBridge */ = {isa = PBXNativeTarget; buildConfigurationList = F00100010000000000000021; buildPhases = (C00100010000000000000003, C00100010000000000000001, C00100010000000000000004,); buildRules = ( ); dependencies = ( ); name = CamBridge; productName = CamBridge; productReference = B00100010000000000000000; productType = "com.apple.product-type.application"; };
+		E00100010000000000000002 /* CamBridgeTests */ = {isa = PBXNativeTarget; buildConfigurationList = F00100010000000000000022; buildPhases = (C00100010000000000000005, C00100010000000000000002, C00100010000000000000006,); buildRules = ( ); dependencies = (G00100010000000000000001,); name = CamBridgeTests; productName = CamBridgeTests; productReference = B0010001000000000000000B; productType = "com.apple.product-type.bundle.unit-test"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E00100010000000000000000 /* Project object */ = {isa = PBXProject; attributes = { LastUpgradeCheck = 1600; TargetAttributes = { E00100010000000000000001 = { CreatedOnToolsVersion = 16.0; }; E00100010000000000000002 = { CreatedOnToolsVersion = 16.0; TestTargetID = E00100010000000000000001; }; }; }; buildConfigurationList = F00100010000000000000020; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = D00100010000000000000000; productRefGroup = D00100010000000000000003; projectDirPath = ""; projectRoot = ""; targets = (E00100010000000000000001, E00100010000000000000002,); };
+/* End PBXProject section */
+
+/* Begin PBXTargetDependency section */
+		G00100010000000000000001 /* CamBridge target dependency */ = {isa = PBXTargetDependency; target = E00100010000000000000001; targetProxy = G00100010000000000000002; };
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		G00100010000000000000002 /* Target proxy */ = {isa = PBXContainerItemProxy; containerPortal = E00100010000000000000000; proxyType = 1; remoteGlobalIDString = E00100010000000000000001; remoteInfo = CamBridge; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C00100010000000000000004 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+		C00100010000000000000006 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = ( ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C00100010000000000000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100010000000000000001, A00100010000000000000002, A00100010000000000000003, A00100010000000000000004, A00100010000000000000005, A00100010000000000000006, A00100010000000000000007, A00100010000000000000008,); runOnlyForDeploymentPostprocessing = 0; };
+		C00100010000000000000005 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00100010000000000000009, A0010001000000000000000A,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F00100010000000000000011 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = CamBridgeApp/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.kukeke.cambridge.dev.20260827; PRODUCT_MODULE_NAME = CamBridgeApp; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; TARGETED_DEVICE_FAMILY = "1"; }; name = Debug; };
+		F00100010000000000000012 /* Release */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = CamBridgeApp/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.kukeke.cambridge.dev.20260827; PRODUCT_MODULE_NAME = CamBridgeApp; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; SWIFT_OPTIMIZATION_LEVEL = "-O"; TARGETED_DEVICE_FAMILY = "1"; }; name = Release; };
+		F00100010000000000000013 /* Test Debug */ = {isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.kukeke.cambridge.dev.20260827.tests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CamBridge.app/CamBridge"; }; name = Debug; };
+		F00100010000000000000014 /* Test Release */ = {isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = com.kukeke.cambridge.dev.20260827.tests; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CamBridge.app/CamBridge"; }; name = Release; };
+		F00100010000000000000015 /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SWIFT_VERSION = 5.0; }; name = Debug; };
+		F00100010000000000000016 /* Project Release */ = {isa = XCBuildConfiguration; buildSettings = { ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SWIFT_VERSION = 5.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F00100010000000000000020 /* Project configuration list */ = {isa = XCConfigurationList; buildConfigurations = (F00100010000000000000015, F00100010000000000000016,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00100010000000000000021 /* Target configuration list */ = {isa = XCConfigurationList; buildConfigurations = (F00100010000000000000011, F00100010000000000000012,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F00100010000000000000022 /* Test target configuration list */ = {isa = XCConfigurationList; buildConfigurations = (F00100010000000000000013, F00100010000000000000014,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = E00100010000000000000000 /* Project object */;
+}
