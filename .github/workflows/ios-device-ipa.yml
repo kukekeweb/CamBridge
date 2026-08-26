@@ -37,6 +37,8 @@ jobs:
         run: ./scripts/validate-stage1.ps1
 
       - name: Run Swift tests on iOS 27 simulator
+        id: swift_tests
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -45,7 +47,20 @@ jobs:
             -scheme CamBridge \
             -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.0' \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee "$RUNNER_TEMP/xcodebuild-test.log"
+
+      - name: Upload XCTest diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CamBridge-xcodebuild-test-log-${{ github.run_number }}
+          path: ${{ runner.temp }}/xcodebuild-test.log
+          if-no-files-found: warn
+
+      - name: Stop if XCTest failed
+        if: steps.swift_tests.outcome != 'success'
+        shell: bash
+        run: exit 1
 
       - name: Archive generic iOS device target without Apple signing
         shell: bash
