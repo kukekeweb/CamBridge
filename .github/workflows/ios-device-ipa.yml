@@ -57,6 +57,20 @@ jobs:
           path: ${{ runner.temp }}/xcodebuild-test.log
           if-no-files-found: warn
 
+      - name: Publish XCTest failure diagnostics
+        if: steps.swift_tests.outcome != 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostics="$(grep -E 'error:|fatal error:|Test Case|Test Suite|Failing tests' "$RUNNER_TEMP/xcodebuild-test.log" | tail -n 20 | tr '\n' ' ' | cut -c1-1800 || true)"
+          if [[ -z "$diagnostics" ]]; then
+            diagnostics="No filtered diagnostics found; download the XCTest log Artifact."
+          fi
+          diagnostics="${diagnostics//'%'/'%25'}"
+          diagnostics="${diagnostics//$'\r'/'%0D'}"
+          diagnostics="${diagnostics//$'\n'/'%0A'}"
+          echo "::error title=XCTest diagnostics::$diagnostics"
+
       - name: Stop if XCTest failed
         if: steps.swift_tests.outcome != 'success'
         shell: bash
