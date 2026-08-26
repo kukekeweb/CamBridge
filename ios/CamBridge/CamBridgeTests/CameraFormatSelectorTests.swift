@@ -1,5 +1,5 @@
 import XCTest
-@testable import CamBridgeApp
+@testable import CamBridge
 
 final class CameraFormatSelectorTests: XCTestCase {
     func testSelectsExact1080p60WithoutFallback() {

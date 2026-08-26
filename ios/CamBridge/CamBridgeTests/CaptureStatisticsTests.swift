@@ -1,6 +1,6 @@
 import XCTest
 import CoreMedia
-@testable import CamBridgeApp
+@testable import CamBridge
 
 final class CaptureStatisticsTests: XCTestCase {
     func testComputesDeliveredFPSFromPresentationTimestamps() {
