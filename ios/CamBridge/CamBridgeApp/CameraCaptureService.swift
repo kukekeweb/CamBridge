@@ -125,8 +125,8 @@ final class CameraCaptureService: NSObject, ObservableObject, AVCaptureVideoData
                 }
                 videoOutput.setSampleBufferDelegate(self, queue: sessionQueue)
                 videoOutput.alwaysDiscardsLateVideoFrames = true
-                if videoOutput.availableVideoCVPixelFormatTypes.contains(where: {
-                    $0.uint32Value == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+                if videoOutput.availableVideoPixelFormatTypes.contains(where: {
+                    $0 == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
                 }) {
                     videoOutput.videoSettings = [
                         kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
