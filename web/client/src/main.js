@@ -4,6 +4,10 @@ import {
   probeLowLatencyAPIs,
 } from "./capability-probe.js";
 import { CaptureController } from "./capture-controller.js";
+import {
+  DiagnosticMatrixRunner,
+  serialiseDiagnosticCSV,
+} from "./diagnostic-matrix.js";
 import { FrameRateMeter } from "./frame-rate-meter.js";
 import {
   createOutputPlan,
@@ -16,6 +20,7 @@ const video = $("camera-preview");
 const errors = [];
 let devices = [];
 let latestSettings = createSettings();
+let matrixRows = [];
 
 function json(value) {
   return JSON.stringify(value, null, 2);
@@ -111,12 +116,62 @@ function renderMeter(update) {
   $("missing-value").textContent = String(update.missingFrames);
 }
 
+function renderMatrix() {
+  const body = $("matrix-table-body");
+  body.replaceChildren();
+  for (const row of matrixRows) {
+    const tableRow = document.createElement("tr");
+    const values = [
+      row.deviceLabel || row.deviceId || "Unknown camera",
+      `${row.requestedWidth}×${row.requestedHeight} @ ${row.requestedFPS}`,
+      row.getUserMediaSucceeded ? "success" : "failed",
+      row.settings?.width ? `${row.settings.width}×${row.settings.height} @ ${row.settings.frameRate}` : "—",
+      row.measuredFPS10s === null || row.measuredFPS10s === undefined ? "—" : `${row.measuredFPS10s.toFixed(2)} fps`,
+      row.diagnosis || row.status,
+    ];
+    values.forEach((value, index) => {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      if (index === 2 && !row.getUserMediaSucceeded) cell.className = "matrix-failed";
+      if (index === 5 && row.diagnosis !== "match") cell.className = "matrix-mismatch";
+      if (index === 5 && row.diagnosis === "match") cell.className = "matrix-match";
+      tableRow.append(cell);
+    });
+    body.append(tableRow);
+  }
+  const exportArea = $("matrix-export");
+  exportArea.value = JSON.stringify(matrixRows, null, 2);
+  $("copy-json-button").disabled = matrixRows.length === 0;
+  $("copy-csv-button").disabled = matrixRows.length === 0;
+}
+
+async function copyMatrix(text, format) {
+  try {
+    await navigator.clipboard.writeText(text);
+    $("matrix-status").textContent = `● ${format} copied to clipboard`;
+  } catch (error) {
+    recordError(`Clipboard copy failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 const meter = new FrameRateMeter();
 const controller = new CaptureController({
   mediaDevices: navigator.mediaDevices,
   video,
   meter,
   onMeterUpdate: renderMeter,
+});
+
+const matrixRunner = new DiagnosticMatrixRunner({
+  mediaDevices: navigator.mediaDevices,
+  video,
+  meterFactory: () => new FrameRateMeter(),
+  onProgress: (progress) => {
+    if (progress.kind === "trial-started") {
+      const camera = progress.device.label || progress.device.deviceId || "camera";
+      $("matrix-status").textContent = `● ${camera}: ${progress.row.requestedWidth}×${progress.row.requestedHeight} @ ${progress.row.requestedFPS} — observing for 10 seconds`;
+    }
+  },
 });
 
 $("latency-output").textContent = json(probeLowLatencyAPIs(globalThis));
@@ -165,6 +220,43 @@ $("stop-button").addEventListener("click", () => {
   $("capture-status").className = "status";
   $("actual-value").textContent = "—";
 });
+
+async function runMatrix(targetDevices) {
+  if (targetDevices.length === 0) {
+    $("matrix-status").textContent = "● No video inputs available";
+    return;
+  }
+  controller.stop();
+  $("preview-placeholder").hidden = false;
+  matrixRows = [];
+  renderMatrix();
+  $("run-matrix-button").disabled = true;
+  $("run-all-matrix-button").disabled = true;
+  try {
+    for (const device of targetDevices) {
+      const rows = await matrixRunner.runDevice(device);
+      matrixRows.push(...rows);
+      renderMatrix();
+    }
+    $("matrix-status").textContent = `● Matrix complete: ${matrixRows.length} trials`;
+  } catch (error) {
+    $("matrix-status").textContent = `● Matrix error: ${error instanceof Error ? error.message : String(error)}`;
+    recordError(error);
+  } finally {
+    $("run-matrix-button").disabled = false;
+    $("run-all-matrix-button").disabled = false;
+  }
+}
+
+$("run-matrix-button").addEventListener("click", () => {
+  const selectedId = $("camera-select").value;
+  const selected = devices.find((device) => device.deviceId === selectedId) || devices[0];
+  runMatrix(selected ? [selected] : []);
+});
+
+$("run-all-matrix-button").addEventListener("click", () => runMatrix(devices));
+$("copy-json-button").addEventListener("click", () => copyMatrix(JSON.stringify(matrixRows, null, 2), "JSON"));
+$("copy-csv-button").addEventListener("click", () => copyMatrix(serialiseDiagnosticCSV(matrixRows), "CSV"));
 
 $("orientation-select").addEventListener("change", () => {
   const settings = readSettings();

@@ -39,6 +39,7 @@ function Assert-NotContains([string] $RelativePath, [string] $Text, [string] $De
     "web/client/src/capability-probe.js",
     "web/client/src/frame-rate-meter.js",
     "web/client/src/capture-controller.js",
+    "web/client/src/diagnostic-matrix.js",
     "web/client/src/main.js",
     "web/client/README.md",
     "windows/stage1-server/server.mjs",
@@ -52,6 +53,11 @@ function Assert-NotContains([string] $RelativePath, [string] $Text, [string] $De
     "Codec capabilities", "Capture status", "Developer / Diagnostics"
 ) | ForEach-Object { Assert-Contains "web/client/index.html" $_ "Missing required UI label: $_" }
 
+@(
+    "Diagnostic Matrix Probe", "Run Selected Camera Matrix", "Run All Cameras",
+    "Copy JSON", "Copy CSV", "Measured 10s", "Diagnosis"
+) | ForEach-Object { Assert-Contains "web/client/index.html" $_ "Missing diagnostic matrix UI element: $_" }
+
 Assert-Contains "web/client/src/settings.js" "width: { exact: settings.resolution.width }" "Resolution must use exact constraints"
 Assert-Contains "web/client/src/settings.js" "height: { exact: settings.resolution.height }" "Resolution must use exact constraints"
 Assert-Contains "web/client/src/settings.js" "frameRate: { exact: settings.frameRate }" "Frame rate must use exact constraints"
@@ -61,6 +67,13 @@ Assert-Contains "web/client/src/capability-probe.js" "getSettings" "Track settin
 Assert-Contains "web/client/src/capability-probe.js" "getConstraints" "Track constraints probe missing"
 Assert-Contains "web/client/src/frame-rate-meter.js" "requestVideoFrameCallback" "Empirical frame measurement missing"
 Assert-Contains "web/client/src/capability-probe.js" 'getCapabilities("video")' "Runtime codec capability probe missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "width: 1280, height: 720, frameRate: 30" "Diagnostic 720p30 case missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "width: 3840, height: 2160, frameRate: 60" "Diagnostic 4K60 case missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "mismatch-observed" "Diagnostic mismatch observation missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "serialiseDiagnosticCSV" "Diagnostic CSV export missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "A"' "Diagnostic A classification missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "B"' "Diagnostic B classification missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "C"' "Diagnostic C classification missing"
 Assert-Contains "windows/stage1-server/server.mjs" "iPhone access URL" "IP access URL startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Certificate SAN" "Certificate SAN startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Friendly URL" "Friendly URL startup diagnostic missing"

@@ -75,6 +75,21 @@ The page exposes:
 - runtime low-latency API presence detection, without creating a peer
   connection.
 
+The **Diagnostic Matrix Probe** separately tests every detected camera with
+fresh exact requests for 720p30/60, 1080p30/60, 1440p30/60, and 4K30/60. A
+successful mismatch is intentionally observed for ten seconds before its
+track is stopped. Results include capability snapshots, actual settings,
+constraints, measured 1-second/10-second FPS, missing-frame estimates,
+exception details, and A/B/C diagnosis; JSON and CSV can be copied from the
+page.
+
+The diagnoses distinguish these causes:
+
+- A: `frameRate.max < 60`, actual track is below 60.
+- B: `frameRate.max >= 60`, requested 60, actual track is below 60.
+- C: `frameRate.max >= 60`, actual track is 60, but measured 10-second FPS is
+  substantially lower.
+
 The 1920×1080 / 60 FPS result is accepted only from an iPhone 17 / iOS 27
 Safari session's actual capabilities, settings, measured frames, and codec
 list. A simulator or published device specification is not an acceptance
@@ -106,5 +121,9 @@ On the target iPhone 17 / iOS 27 Safari:
    `1080p60 unavailable` / mismatch.
 6. Measured FPS reports approximately 59–60 FPS when the API is available.
 7. Capture remains stable for at least ten minutes.
+
+For the 1080p60 investigation, run **Run All Cameras** after permission has
+populated the device labels. Wait for all eight trials per camera to finish,
+then use **Copy JSON** or **Copy CSV** to preserve the complete evidence.
 
 Until this real-device gate passes, Stage 2 must not begin.

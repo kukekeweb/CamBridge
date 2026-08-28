@@ -76,6 +76,36 @@
         </dl>
       </section>
 
+      <section class="card matrix-card" aria-labelledby="matrix-heading">
+        <h2 id="matrix-heading">Diagnostic Matrix Probe</h2>
+        <p class="muted">Runs each exact request with a fresh camera track and observes successful mismatches for 10 seconds. Normal capture fallback remains disabled.</p>
+        <div class="button-row">
+          <button id="run-matrix-button" type="button">Run Selected Camera Matrix</button>
+          <button id="run-all-matrix-button" type="button" class="secondary">Run All Cameras</button>
+        </div>
+        <p id="matrix-status" class="status">● Idle</p>
+        <div class="table-wrap">
+          <table id="matrix-table">
+            <thead>
+              <tr>
+                <th>Camera</th>
+                <th>Requested</th>
+                <th>getUserMedia</th>
+                <th>Actual</th>
+                <th>Measured 10s</th>
+                <th>Diagnosis</th>
+              </tr>
+            </thead>
+            <tbody id="matrix-table-body"></tbody>
+          </table>
+        </div>
+        <div class="button-row">
+          <button id="copy-json-button" type="button" class="secondary" disabled>Copy JSON</button>
+          <button id="copy-csv-button" type="button" class="secondary" disabled>Copy CSV</button>
+        </div>
+        <textarea id="matrix-export" readonly aria-label="Diagnostic matrix export" placeholder="Results will appear here after a matrix run"></textarea>
+      </section>
+
       <section class="card" aria-labelledby="codec-heading">
         <h2 id="codec-heading">Codec capabilities</h2>
         <p class="muted">Runtime result from <code>RTCRtpSender.getCapabilities("video")</code>; no codec is assumed.</p>

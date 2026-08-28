@@ -38,6 +38,13 @@ pre { overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #
 .compact-list { margin: 0; padding-left: 1.2rem; }
 .compact-list li { margin: .35rem 0; }
 summary { cursor: pointer; font-weight: 700; }
+.table-wrap { overflow-x: auto; margin: .9rem 0; }
+table { width: 100%; border-collapse: collapse; font-size: .78rem; white-space: nowrap; }
+th, td { border-bottom: 1px solid #2b3c5b; padding: .55rem .45rem; text-align: left; }
+th { color: #a9b9d4; font-weight: 600; }
+td.matrix-mismatch, td.matrix-failed { color: #ff8d8d; }
+td.matrix-match { color: #65e39c; }
+textarea { width: 100%; min-height: 9rem; resize: vertical; border: 1px solid #2b3c5b; border-radius: .6rem; padding: .75rem; color: #c9dcff; background: #0a1120; font: .78rem ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 @media (min-width: 42rem) {
   .controls { grid-template-columns: 1fr 1fr; }
