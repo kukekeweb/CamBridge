@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   enumerateVideoInputs,
+  probeVideoDeviceExposure,
+  summariseVideoInputExposure,
   probeCodecCapabilities,
   probeLowLatencyAPIs,
   snapshotTrackCapabilities,
@@ -24,6 +26,42 @@ test("enumerateVideoInputs preserves returned device fields", async () => {
     { kind: "videoinput", label: "Back", deviceId: "back", groupId: "group" },
     { kind: "videoinput", label: "Front", deviceId: "front" },
   ]);
+});
+
+test("device exposure probe enumerates while the priming track is live, then records after-stop exposure", async () => {
+  const calls = [];
+  const permissionTrack = { stopped: false, stop() { this.stopped = true; } };
+  let enumerateCount = 0;
+  const exposure = await probeVideoDeviceExposure({
+    async getUserMedia(request) {
+      calls.push(["getUserMedia", request]);
+      return { getTracks: () => [permissionTrack] };
+    },
+    async enumerateDevices() {
+      enumerateCount += 1;
+      calls.push(["enumerateDevices", permissionTrack.stopped]);
+      return enumerateCount === 1
+        ? [{ kind: "videoinput", label: "Back", deviceId: "back", groupId: "group" }]
+        : [{ kind: "videoinput", label: "", deviceId: "", groupId: "" }];
+    },
+  });
+
+  assert.deepEqual(exposure.duringActiveCapture, [{ kind: "videoinput", label: "Back", deviceId: "back", groupId: "group" }]);
+  assert.deepEqual(exposure.afterPrimingTrackStopped, [{ kind: "videoinput", label: "", deviceId: "", groupId: "" }]);
+  assert.deepEqual(calls, [
+    ["getUserMedia", { audio: false, video: true }],
+    ["enumerateDevices", false],
+    ["enumerateDevices", true],
+  ]);
+  assert.equal(permissionTrack.stopped, true);
+  assert.deepEqual(exposure.duringActiveSummary, {
+    cameraCount: 1,
+    deviceIdsPresent: 1,
+    labelsPresent: 1,
+    groupIdsPresent: 1,
+    entries: [{ index: 1, label: "Back", labelPresent: true, deviceId: "back", deviceIdPresent: true, groupId: "group", groupIdPresent: true }],
+  });
+  assert.equal(summariseVideoInputExposure(exposure.afterPrimingTrackStopped).deviceIdsPresent, 0);
 });
 
 test("track snapshots omit fields the browser did not return", () => {

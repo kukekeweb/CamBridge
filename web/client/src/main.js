@@ -1,5 +1,6 @@
 import {
   enumerateVideoInputs,
+  probeVideoDeviceExposure,
   probeCodecCapabilities,
   probeLowLatencyAPIs,
 } from "./capability-probe.js";
@@ -8,7 +9,31 @@ import {
   DiagnosticMatrixRunner,
   serialiseDiagnosticCSV,
 } from "./diagnostic-matrix.js";
+import {
+  ConstraintProbeRunner,
+  serialiseConstraintProbeCSV,
+} from "./constraint-probe.js";
 import { FrameRateMeter } from "./frame-rate-meter.js";
+import { StabilityTestRunner } from "./stability-test.js";
+import {
+  describeError,
+  formatActualCapture,
+  formatCapabilities,
+  formatCameraLabel,
+  formatCodecProbeError,
+  formatConstraintProbeResult,
+  formatConstraints,
+  formatDiagnosticResult,
+  formatLatencyAPIs,
+  formatMeasuredFPS,
+  formatOutputPlan,
+  formatRequestedCapture,
+  formatSettings,
+  formatStabilityFPS,
+  formatStabilitySeconds,
+  formatStabilityStatus,
+  TEXT,
+} from "./i18n.js";
 import {
   createOutputPlan,
   createSettings,
@@ -21,21 +46,24 @@ const errors = [];
 let devices = [];
 let latestSettings = createSettings();
 let matrixRows = [];
+let constraintProbeRows = [];
+let stabilityRunning = false;
+let stabilityReport = null;
 
 function json(value) {
   return JSON.stringify(value, null, 2);
 }
 
 function recordError(error) {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error || error?.name ? describeError(error) : String(error);
   errors.push(message);
   $("errors-output").textContent = json(errors);
 }
 
 function renderRequested(settings) {
-  $("requested-value").textContent = `${settings.resolution.width}×${settings.resolution.height} @ ${settings.frameRate}`;
+  $("requested-value").textContent = formatRequestedCapture(settings);
   const plan = createOutputPlan(settings);
-  $("output-plan-value").textContent = `${plan.outputDimensions.width}×${plan.outputDimensions.height}, ${plan.rotationDegrees}° (${plan.transportTransform})`;
+  $("output-plan-value").textContent = formatOutputPlan(plan);
 }
 
 function populateCameraSelect() {
@@ -43,11 +71,11 @@ function populateCameraSelect() {
   const previous = select.value;
   select.replaceChildren();
   if (devices.length === 0) {
-    select.append(new Option("No video inputs reported", ""));
+    select.append(new Option(TEXT.noVideoInputs, ""));
     return;
   }
   devices.forEach((device, index) => {
-    const label = device.label || `Camera ${index + 1} (label unavailable)`;
+    const label = formatCameraLabel(device.label, index);
     select.append(new Option(label, device.deviceId || ""));
   });
   if ([...select.options].some((option) => option.value === previous)) {
@@ -57,7 +85,7 @@ function populateCameraSelect() {
 
 async function refreshDevices() {
   if (!navigator.mediaDevices?.enumerateDevices) {
-    recordError("navigator.mediaDevices.enumerateDevices is unavailable");
+    recordError(TEXT.enumerateUnavailable);
     return;
   }
   try {
@@ -75,13 +103,13 @@ function renderCodecs() {
   list.replaceChildren();
   if (!result.available) {
     const item = document.createElement("li");
-    item.textContent = result.error || "Codec capability API unavailable";
+    item.textContent = formatCodecProbeError(result.error);
     list.append(item);
     return;
   }
   if (result.codecs.length === 0) {
     const item = document.createElement("li");
-    item.textContent = "No video codecs returned by Safari";
+    item.textContent = TEXT.noCodecs;
     list.append(item);
     return;
   }
@@ -106,14 +134,34 @@ function readSettings() {
 
 function renderMeter(update) {
   if (!update.available) {
-    $("measured-value").textContent = "Unavailable (requestVideoFrameCallback missing)";
-    $("frame-counter-value").textContent = "—";
-    $("missing-value").textContent = "—";
+    $("measured-value").textContent = formatMeasuredFPS(update);
+    $("frame-counter-value").textContent = TEXT.noValue;
+    $("missing-value").textContent = TEXT.noValue;
     return;
   }
-  $("measured-value").textContent = `${update.oneSecondFPS.toFixed(2)} fps (10 s: ${update.tenSecondFPS.toFixed(2)} fps)`;
+  $("measured-value").textContent = formatMeasuredFPS(update);
   $("frame-counter-value").textContent = String(update.frameCount);
   $("missing-value").textContent = String(update.missingFrames);
+}
+
+function renderStability(update) {
+  const report = update.report;
+  $("stability-elapsed-value").textContent = `${formatStabilitySeconds(update.elapsedSeconds)} / 10:00`;
+  $("stability-current-fps-value").textContent = formatStabilityFPS(update.currentFPS);
+  $("stability-min-fps-value").textContent = formatStabilityFPS(update.minOneSecondFPS);
+  $("stability-average-fps-value").textContent = formatStabilityFPS(update.averageOneSecondFPS);
+  $("stability-track-value").textContent = update.trackReadyState || TEXT.noValue;
+  if (!report) {
+    $("stability-status").textContent = TEXT.stabilityRunning;
+    $("stability-status").className = "status running";
+    return;
+  }
+  stabilityReport = report;
+  const status = formatStabilityStatus(report.status);
+  $("stability-status").textContent = TEXT.stabilityComplete.replace("{status}", status);
+  $("stability-status").className = report.status === "PASS" ? "status running" : "status error";
+  $("stability-export").value = JSON.stringify(report, null, 2);
+  $("copy-stability-json-button").disabled = false;
 }
 
 function renderMatrix() {
@@ -122,19 +170,20 @@ function renderMatrix() {
   for (const row of matrixRows) {
     const tableRow = document.createElement("tr");
     const values = [
-      row.deviceLabel || row.deviceId || "Unknown camera",
-      `${row.requestedWidth}×${row.requestedHeight} @ ${row.requestedFPS}`,
-      row.getUserMediaSucceeded ? "success" : "failed",
-      row.settings?.width ? `${row.settings.width}×${row.settings.height} @ ${row.settings.frameRate}` : "—",
-      row.measuredFPS10s === null || row.measuredFPS10s === undefined ? "—" : `${row.measuredFPS10s.toFixed(2)} fps`,
-      row.diagnosis || row.status,
+      row.deviceLabel || row.deviceId || TEXT.unknownCamera,
+      formatRequestedCapture({ resolution: { width: row.requestedWidth, height: row.requestedHeight }, frameRate: row.requestedFPS }),
+      row.getUserMediaSucceeded ? TEXT.matrixSuccess : TEXT.matrixErrorResult,
+      row.settings?.width ? formatActualCapture(row.settings) : TEXT.noValue,
+      row.settings?.facingMode || TEXT.noValue,
+      row.measuredFPS10s === null || row.measuredFPS10s === undefined ? TEXT.noValue : `${row.measuredFPS10s.toFixed(2)} fps`,
+      formatDiagnosticResult(row.diagnosis),
     ];
     values.forEach((value, index) => {
       const cell = document.createElement("td");
       cell.textContent = String(value);
       if (index === 2 && !row.getUserMediaSucceeded) cell.className = "matrix-failed";
-      if (index === 5 && row.diagnosis !== "match") cell.className = "matrix-mismatch";
-      if (index === 5 && row.diagnosis === "match") cell.className = "matrix-match";
+      if (index === 6 && row.diagnosis !== "match") cell.className = "matrix-mismatch";
+      if (index === 6 && row.diagnosis === "match") cell.className = "matrix-match";
       tableRow.append(cell);
     });
     body.append(tableRow);
@@ -145,12 +194,44 @@ function renderMatrix() {
   $("copy-csv-button").disabled = matrixRows.length === 0;
 }
 
+function renderConstraintProbe() {
+  const body = $("constraint-probe-table-body");
+  body.replaceChildren();
+  for (const row of constraintProbeRows) {
+    const values = [
+      row.deviceLabel || row.deviceId || TEXT.unknownCamera,
+      row.probeLabel,
+      row.getUserMediaSucceeded ? TEXT.matrixSuccess : TEXT.matrixErrorResult,
+      row.applyConstraints === null ? TEXT.noValue : row.applyConstraintsSucceeded ? TEXT.matrixSuccess : TEXT.matrixErrorResult,
+      row.settings?.width ? formatActualCapture(row.settings) : TEXT.noValue,
+      row.settings?.facingMode || TEXT.noValue,
+      row.measuredFPS10s === null || row.measuredFPS10s === undefined ? TEXT.noValue : `${row.measuredFPS10s.toFixed(2)} fps`,
+      formatConstraintProbeResult(row.diagnosis),
+    ];
+    const tableRow = document.createElement("tr");
+    values.forEach((value, index) => {
+      const cell = document.createElement("td");
+      cell.textContent = String(value);
+      if ((index === 2 || index === 3) && value === TEXT.matrixErrorResult) cell.className = "matrix-failed";
+      if (index === 7 && row.diagnosis === "success-60") cell.className = "matrix-match";
+      if (index === 7 && row.diagnosis !== "success-60") cell.className = "matrix-mismatch";
+      tableRow.append(cell);
+    });
+    body.append(tableRow);
+  }
+  $("constraint-probe-export").value = JSON.stringify(constraintProbeRows, null, 2);
+  $("copy-constraint-json-button").disabled = constraintProbeRows.length === 0;
+  $("copy-constraint-csv-button").disabled = constraintProbeRows.length === 0;
+}
+
 async function copyMatrix(text, format) {
   try {
     await navigator.clipboard.writeText(text);
-    $("matrix-status").textContent = `● ${format} copied to clipboard`;
+    $("matrix-status").textContent = TEXT.clipboardCopied.replace("{format}", format);
   } catch (error) {
-    recordError(`Clipboard copy failed: ${error instanceof Error ? error.message : String(error)}`);
+    const message = TEXT.clipboardFailed.replace("{message}", describeError(error));
+    $("matrix-status").textContent = `● ${message}`;
+    recordError(error);
   }
 }
 
@@ -168,13 +249,68 @@ const matrixRunner = new DiagnosticMatrixRunner({
   meterFactory: () => new FrameRateMeter(),
   onProgress: (progress) => {
     if (progress.kind === "trial-started") {
-      const camera = progress.device.label || progress.device.deviceId || "camera";
-      $("matrix-status").textContent = `● ${camera}: ${progress.row.requestedWidth}×${progress.row.requestedHeight} @ ${progress.row.requestedFPS} — observing for 10 seconds`;
+      const camera = progress.device.label || progress.device.deviceId || TEXT.unknownCamera;
+      $("matrix-status").textContent = TEXT.matrixObserving
+        .replace("{camera}", camera)
+        .replace("{width}", progress.row.requestedWidth)
+        .replace("{height}", progress.row.requestedHeight)
+        .replace("{fps}", progress.row.requestedFPS);
     }
   },
 });
 
-$("latency-output").textContent = json(probeLowLatencyAPIs(globalThis));
+const constraintProbeRunner = new ConstraintProbeRunner({
+  mediaDevices: navigator.mediaDevices,
+  video,
+  meterFactory: () => new FrameRateMeter(),
+  onProgress: (progress) => {
+    if (progress.kind === "trial-started") {
+      const camera = progress.device.label || progress.device.deviceId || TEXT.unknownCamera;
+      $("constraint-probe-status").textContent = TEXT.constraintObserving
+        .replace("{camera}", camera)
+        .replace("{probe}", progress.row.probeLabel);
+    }
+  },
+});
+
+const stabilityRunner = new StabilityTestRunner({
+  mediaDevices: navigator.mediaDevices,
+  video,
+  onUpdate: renderStability,
+});
+
+async function refreshDevicesAfterPermission() {
+  if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.enumerateDevices) {
+    throw new Error(TEXT.enumerateUnavailable);
+  }
+  const exposure = await probeVideoDeviceExposure(navigator.mediaDevices);
+  devices = exposure.duringActiveCapture;
+  populateCameraSelect();
+  $("devices-output").textContent = json(devices);
+  $("exposure-output").textContent = json({
+    duringActiveCapture: exposure.duringActiveSummary,
+    afterPrimingTrackStopped: exposure.afterStoppedSummary,
+  });
+  if (!devices.some((device) => device.deviceId)) {
+    throw { name: "DeviceIdentityUnavailable", message: "", exposure };
+  }
+  return devices;
+}
+
+function selectedDeviceFrom(refreshedDevices, selectedId) {
+  return refreshedDevices.find((device) => device.deviceId === selectedId) || refreshedDevices[0];
+}
+
+function selectDiagnosticDevices(refreshedDevices, selectedId, runAll) {
+  const identifiedDevices = refreshedDevices.filter((device) => device.deviceId);
+  if (runAll) return identifiedDevices.map((device) => ({ device, index: refreshedDevices.indexOf(device) }));
+  const effectiveSelectedId = selectedId || $("camera-select").value;
+  const device = selectedDeviceFrom(identifiedDevices, effectiveSelectedId);
+  const index = refreshedDevices.indexOf(device);
+  return device ? [{ device, index }] : [];
+}
+
+$("latency-output").textContent = formatLatencyAPIs(probeLowLatencyAPIs(globalThis));
 renderCodecs();
 renderRequested(latestSettings);
 refreshDevices();
@@ -183,19 +319,19 @@ $("start-button").addEventListener("click", async () => {
   const settings = readSettings();
   latestSettings = settings;
   renderRequested(settings);
-  $("capture-status").textContent = "● Starting exact request…";
+  $("capture-status").textContent = TEXT.captureStarting;
   $("capture-status").className = "status";
   $("start-button").disabled = true;
   try {
     const result = await controller.start(settings, settings.cameraId);
-    $("settings-output").textContent = json(result.actualSettings ?? {});
-    $("capabilities-output").textContent = json(result.capabilities ?? {});
-    $("constraints-output").textContent = json(result.constraints ?? {});
+    $("settings-output").textContent = formatSettings(result.actualSettings ?? {});
+    $("capabilities-output").textContent = formatCapabilities(result.capabilities ?? {});
+    $("constraints-output").textContent = formatConstraints(result.constraints ?? {});
     $("actual-value").textContent = result.actualSettings
-      ? `${result.actualSettings.width ?? "?"}×${result.actualSettings.height ?? "?"} @ ${result.actualSettings.frameRate ?? "?"}`
-      : "—";
+      ? formatActualCapture(result.actualSettings)
+      : TEXT.noValue;
     if (result.ok) {
-      $("capture-status").textContent = "● Running";
+      $("capture-status").textContent = TEXT.captureRunning;
       $("capture-status").className = "status running";
       $("preview-placeholder").hidden = true;
       await refreshDevices();
@@ -205,7 +341,7 @@ $("start-button").addEventListener("click", async () => {
       recordError(result.message);
     }
   } catch (error) {
-    $("capture-status").textContent = `● ${error instanceof Error ? error.message : String(error)}`;
+    $("capture-status").textContent = `● ${describeError(error)}`;
     $("capture-status").className = "status error";
     recordError(error);
   } finally {
@@ -216,14 +352,82 @@ $("start-button").addEventListener("click", async () => {
 $("stop-button").addEventListener("click", () => {
   controller.stop();
   $("preview-placeholder").hidden = false;
-  $("capture-status").textContent = "● Idle";
+  $("capture-status").textContent = TEXT.captureStopped;
   $("capture-status").className = "status";
-  $("actual-value").textContent = "—";
+  $("actual-value").textContent = TEXT.noValue;
 });
 
-async function runMatrix(targetDevices) {
+$("start-stability-button").addEventListener("click", async () => {
+  if (stabilityRunning) return;
+  const cameraId = $("camera-select").value;
+  if (!cameraId) {
+    $("stability-status").textContent = TEXT.stabilityNoCamera;
+    $("stability-status").className = "status error";
+    return;
+  }
+  controller.stop();
+  stabilityRunning = true;
+  stabilityReport = null;
+  $("stability-status").textContent = TEXT.stabilityStarting;
+  $("stability-status").className = "status";
+  $("stability-export").value = "";
+  $("start-stability-button").disabled = true;
+  $("stop-stability-button").disabled = false;
+  $("run-matrix-button").disabled = true;
+  $("run-all-matrix-button").disabled = true;
+  $("run-constraint-probe-button").disabled = true;
+  $("run-all-constraint-probe-button").disabled = true;
+  try {
+    const settings = createSettings({
+      cameraId,
+      resolution: { width: 1920, height: 1080 },
+      frameRate: 60,
+    });
+    await stabilityRunner.start(settings, cameraId);
+  } catch (error) {
+    $("stability-status").textContent = `● ${describeError(error)}`;
+    $("stability-status").className = "status error";
+    recordError(error);
+  } finally {
+    stabilityRunning = false;
+    $("start-stability-button").disabled = false;
+    $("stop-stability-button").disabled = true;
+    $("run-matrix-button").disabled = false;
+    $("run-all-matrix-button").disabled = false;
+    $("run-constraint-probe-button").disabled = false;
+    $("run-all-constraint-probe-button").disabled = false;
+  }
+});
+
+$("stop-stability-button").addEventListener("click", () => {
+  if (stabilityRunning) stabilityRunner.stop("user");
+});
+
+$("copy-stability-json-button").addEventListener("click", async () => {
+  if (!stabilityReport) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(stabilityReport, null, 2));
+    $("stability-status").textContent = TEXT.stabilityCopied;
+  } catch (error) {
+    const message = TEXT.clipboardFailed.replace("{message}", describeError(error));
+    $("stability-status").textContent = `● ${message}`;
+    recordError(error);
+  }
+});
+
+async function runMatrix(runAll) {
+  const selectedId = $("camera-select").value;
+  let refreshedDevices;
+  try {
+    refreshedDevices = await refreshDevicesAfterPermission();
+  } catch (error) {
+    $("matrix-status").textContent = TEXT.matrixError.replace("{message}", describeError(error));
+    recordError(error);
+    return;
+  }
+  const targetDevices = selectDiagnosticDevices(refreshedDevices, selectedId, runAll);
   if (targetDevices.length === 0) {
-    $("matrix-status").textContent = "● No video inputs available";
+    $("matrix-status").textContent = TEXT.matrixNoInputs;
     return;
   }
   controller.stop();
@@ -232,31 +436,86 @@ async function runMatrix(targetDevices) {
   renderMatrix();
   $("run-matrix-button").disabled = true;
   $("run-all-matrix-button").disabled = true;
+  $("run-constraint-probe-button").disabled = true;
+  $("run-all-constraint-probe-button").disabled = true;
   try {
-    for (const device of targetDevices) {
-      const rows = await matrixRunner.runDevice(device);
+    for (const { device, index } of targetDevices) {
+      const rows = await matrixRunner.runDevice(device, index);
       matrixRows.push(...rows);
       renderMatrix();
     }
-    $("matrix-status").textContent = `● Matrix complete: ${matrixRows.length} trials`;
+    $("matrix-status").textContent = TEXT.matrixComplete.replace("{count}", matrixRows.length);
   } catch (error) {
-    $("matrix-status").textContent = `● Matrix error: ${error instanceof Error ? error.message : String(error)}`;
+    $("matrix-status").textContent = TEXT.matrixError.replace("{message}", describeError(error));
     recordError(error);
   } finally {
+    $("run-matrix-button").disabled = false;
+    $("run-all-matrix-button").disabled = false;
+    $("run-constraint-probe-button").disabled = false;
+    $("run-all-constraint-probe-button").disabled = false;
+  }
+}
+
+async function runConstraintProbe(runAll) {
+  const selectedId = $("camera-select").value;
+  let refreshedDevices;
+  try {
+    refreshedDevices = await refreshDevicesAfterPermission();
+  } catch (error) {
+    $("constraint-probe-status").textContent = TEXT.constraintError.replace("{message}", describeError(error));
+    recordError(error);
+    return;
+  }
+  const targetDevices = selectDiagnosticDevices(refreshedDevices, selectedId, runAll);
+  if (targetDevices.length === 0) {
+    $("constraint-probe-status").textContent = TEXT.constraintNoInputs;
+    return;
+  }
+  controller.stop();
+  $("preview-placeholder").hidden = false;
+  constraintProbeRows = [];
+  renderConstraintProbe();
+  $("run-constraint-probe-button").disabled = true;
+  $("run-all-constraint-probe-button").disabled = true;
+  $("run-matrix-button").disabled = true;
+  $("run-all-matrix-button").disabled = true;
+  try {
+    for (const { device, index } of targetDevices) {
+      const rows = await constraintProbeRunner.runDevice(device, index);
+      constraintProbeRows.push(...rows);
+      renderConstraintProbe();
+    }
+    $("constraint-probe-status").textContent = TEXT.constraintComplete.replace("{count}", constraintProbeRows.length);
+  } catch (error) {
+    $("constraint-probe-status").textContent = TEXT.constraintError.replace("{message}", describeError(error));
+    recordError(error);
+  } finally {
+    $("run-constraint-probe-button").disabled = false;
+    $("run-all-constraint-probe-button").disabled = false;
     $("run-matrix-button").disabled = false;
     $("run-all-matrix-button").disabled = false;
   }
 }
 
-$("run-matrix-button").addEventListener("click", () => {
-  const selectedId = $("camera-select").value;
-  const selected = devices.find((device) => device.deviceId === selectedId) || devices[0];
-  runMatrix(selected ? [selected] : []);
-});
+async function copyConstraintProbe(text, format) {
+  try {
+    await navigator.clipboard.writeText(text);
+    $("constraint-probe-status").textContent = TEXT.clipboardCopied.replace("{format}", format);
+  } catch (error) {
+    const message = TEXT.clipboardFailed.replace("{message}", describeError(error));
+    $("constraint-probe-status").textContent = `● ${message}`;
+    recordError(error);
+  }
+}
 
-$("run-all-matrix-button").addEventListener("click", () => runMatrix(devices));
+$("run-matrix-button").addEventListener("click", () => runMatrix(false));
+$("run-all-matrix-button").addEventListener("click", () => runMatrix(true));
 $("copy-json-button").addEventListener("click", () => copyMatrix(JSON.stringify(matrixRows, null, 2), "JSON"));
 $("copy-csv-button").addEventListener("click", () => copyMatrix(serialiseDiagnosticCSV(matrixRows), "CSV"));
+$("run-constraint-probe-button").addEventListener("click", () => runConstraintProbe(false));
+$("run-all-constraint-probe-button").addEventListener("click", () => runConstraintProbe(true));
+$("copy-constraint-json-button").addEventListener("click", () => copyConstraintProbe(JSON.stringify(constraintProbeRows, null, 2), "JSON"));
+$("copy-constraint-csv-button").addEventListener("click", () => copyConstraintProbe(serialiseConstraintProbeCSV(constraintProbeRows), "CSV"));
 
 $("orientation-select").addEventListener("change", () => {
   const settings = readSettings();

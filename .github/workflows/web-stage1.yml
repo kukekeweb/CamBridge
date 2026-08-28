@@ -24,6 +24,9 @@ jobs:
       - name: Run Web Client unit tests
         run: npm test --prefix web/client
 
+      - name: Run 1080p60 stability unit tests
+        run: npm test --prefix web/client -- tests/stability-test.test.js
+
       - name: Check Web Client JavaScript syntax
         run: npm run check --prefix web/client
 

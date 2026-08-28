@@ -3,6 +3,11 @@ import {
   snapshotTrackConstraints,
   snapshotTrackSettings,
 } from "./capability-probe.js";
+import {
+  formatCaptureFailure,
+  formatCaptureMismatch,
+  TEXT,
+} from "./i18n.js";
 import { buildExactVideoConstraints, createOutputPlan } from "./settings.js";
 
 function errorMessage(error) {
@@ -10,14 +15,6 @@ function errorMessage(error) {
     return error.message;
   }
   return String(error);
-}
-
-function requestLabel(settings) {
-  const { width, height } = settings.resolution;
-  if (width === 1920 && height === 1080 && settings.frameRate === 60) {
-    return "1080p60";
-  }
-  return `${width}x${height}@${settings.frameRate}`;
 }
 
 function matchesRequested(settings, actual) {
@@ -58,7 +55,9 @@ export class CaptureController {
         status: "unsupported",
         requestedSettings,
         actualSettings: null,
-        message: `${requestLabel(settings)} unavailable: ${errorMessage(error)}`,
+        message: formatCaptureFailure(settings, error),
+        exceptionName: error?.name || "Error",
+        exceptionMessage: errorMessage(error),
         error: errorMessage(error),
       };
     }
@@ -70,7 +69,7 @@ export class CaptureController {
         status: "error",
         requestedSettings,
         actualSettings: null,
-        message: "Camera stream returned no video track",
+        message: TEXT.captureNoTrack,
         error: "no-video-track",
       };
     }
@@ -87,7 +86,7 @@ export class CaptureController {
         actualSettings,
         capabilities,
         constraints: actualConstraints,
-        message: `${requestLabel(settings)} unavailable: actual track does not match requested settings`,
+        message: formatCaptureMismatch(settings),
         error: "settings-mismatch",
       };
     }
@@ -110,7 +109,7 @@ export class CaptureController {
       outputPlan: createOutputPlan(settings),
       stream,
       track,
-      message: "Capture running",
+      message: TEXT.captureRunning,
       error: null,
     };
   }

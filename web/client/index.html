@@ -1,130 +1,184 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#101827">
-    <title>CamBridge Stage 1</title>
+    <title>CamBridge Stage 1 カメラ診断</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <main class="app-shell">
       <header>
-        <p class="eyebrow">LAN camera capability probe</p>
+        <p class="eyebrow">LANカメラ対応状況プローブ</p>
         <h1>CamBridge</h1>
-        <p class="lede">Safari capture only. WebRTC transport is intentionally not enabled in Stage 1.</p>
+        <p class="lede">Safariのカメラ取得のみを行います。Stage 1ではWebRTC通信を実装していません。</p>
       </header>
 
       <section class="card controls" aria-labelledby="settings-heading">
-        <h2 id="settings-heading">Camera settings</h2>
-        <label>Camera
+        <h2 id="settings-heading">カメラ設定</h2>
+        <label>カメラ
           <select id="camera-select"></select>
         </label>
-        <label>Orientation
+        <label>映像の向き
           <select id="orientation-select">
-            <option value="auto">Auto</option>
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
+            <option value="auto">自動</option>
+            <option value="portrait">縦</option>
+            <option value="landscape">横</option>
           </select>
         </label>
-        <label>Resolution
+        <label>解像度
           <select id="resolution-select">
             <option value="1920x1080">1920×1080</option>
             <option value="2560x1440">2560×1440</option>
             <option value="3840x2160">3840×2160</option>
           </select>
         </label>
-        <label>Frame Rate
+        <label>フレームレート
           <select id="frame-rate-select">
             <option value="30">30</option>
             <option value="60" selected>60</option>
           </select>
         </label>
-        <label>Quality
+        <label>画質
           <select id="quality-select">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high" selected>High</option>
+            <option value="low">低い</option>
+            <option value="medium">中</option>
+            <option value="high" selected>高い</option>
           </select>
-          <small>Stage 2 bitrate preset only; no encoder is active yet.</small>
+          <small>Stage 2でbitrateプリセットに使用します。現在はエンコーダー未使用です。</small>
         </label>
         <div class="button-row">
-          <button id="start-button" type="button">Start Camera</button>
-          <button id="stop-button" type="button" class="secondary">Stop Camera</button>
+          <button id="start-button" type="button">カメラを開始</button>
+          <button id="stop-button" type="button" class="secondary">カメラを停止</button>
         </div>
       </section>
 
       <section class="card preview-card" aria-labelledby="preview-heading">
-        <h2 id="preview-heading">Preview</h2>
+        <h2 id="preview-heading">プレビュー</h2>
         <div class="video-frame">
           <video id="camera-preview" autoplay muted playsinline></video>
-          <p id="preview-placeholder">Camera is stopped</p>
+          <p id="preview-placeholder">カメラは停止中です</p>
         </div>
-        <h3>Capture status</h3>
-        <p id="capture-status" class="status">● Idle</p>
+        <h3>キャプチャ状態</h3>
+        <p id="capture-status" class="status">● 待機中</p>
       </section>
 
       <section class="card metrics" aria-labelledby="metrics-heading">
-        <h2 id="metrics-heading">Capture metrics</h2>
+        <h2 id="metrics-heading">キャプチャ計測値</h2>
         <dl>
-          <div><dt>Requested</dt><dd id="requested-value">1920×1080 @ 60</dd></div>
-          <div><dt>Actual track</dt><dd id="actual-value">—</dd></div>
-          <div><dt>Measured</dt><dd id="measured-value">—</dd></div>
-          <div><dt>Frame counter</dt><dd id="frame-counter-value">—</dd></div>
-          <div><dt>Missing estimate</dt><dd id="missing-value">—</dd></div>
-          <div><dt>Output plan</dt><dd id="output-plan-value">—</dd></div>
+          <div><dt>要求値</dt><dd id="requested-value">1920×1080 / 60fps</dd></div>
+          <div><dt>実際の値（Track）</dt><dd id="actual-value">—</dd></div>
+          <div><dt>実測FPS</dt><dd id="measured-value">—</dd></div>
+          <div><dt>受信フレーム数</dt><dd id="frame-counter-value">—</dd></div>
+          <div><dt>要求FPS基準の不足フレーム数</dt><dd id="missing-value">—</dd></div>
+          <div><dt>出力計画</dt><dd id="output-plan-value">—</dd></div>
         </dl>
       </section>
 
-      <section class="card matrix-card" aria-labelledby="matrix-heading">
-        <h2 id="matrix-heading">Diagnostic Matrix Probe</h2>
-        <p class="muted">Runs each exact request with a fresh camera track and observes successful mismatches for 10 seconds. Normal capture fallback remains disabled.</p>
+      <section class="card stability-card" aria-labelledby="stability-heading">
+        <h2 id="stability-heading">1080p60 10分安定性テスト</h2>
+        <p class="muted">カメラ一覧で背面カメラを選択してから開始してください。1920×1080 / 60fpsをexact条件で1回取得し、600秒間同じTrackを観察します。一時的なFPS低下だけではFAILにしません。</p>
         <div class="button-row">
-          <button id="run-matrix-button" type="button">Run Selected Camera Matrix</button>
-          <button id="run-all-matrix-button" type="button" class="secondary">Run All Cameras</button>
+          <button id="start-stability-button" type="button">安定性テストを開始</button>
+          <button id="stop-stability-button" type="button" class="secondary" disabled>安定性テストを停止</button>
         </div>
-        <p id="matrix-status" class="status">● Idle</p>
+        <p id="stability-status" class="status">● 待機中</p>
+        <dl class="stability-live-metrics">
+          <div><dt>経過時間</dt><dd id="stability-elapsed-value">00:00 / 10:00</dd></div>
+          <div><dt>現在FPS</dt><dd id="stability-current-fps-value">—</dd></div>
+          <div><dt>最低1秒FPS</dt><dd id="stability-min-fps-value">—</dd></div>
+          <div><dt>平均1秒FPS</dt><dd id="stability-average-fps-value">—</dd></div>
+          <div><dt>Track</dt><dd id="stability-track-value">—</dd></div>
+        </dl>
+        <button id="copy-stability-json-button" type="button" class="secondary" disabled>安定性テストJSONをコピー</button>
+        <textarea id="stability-export" readonly aria-label="安定性テストのJSON出力" placeholder="テスト完了後にJSONが表示されます"></textarea>
+      </section>
+
+      <section class="card matrix-card" aria-labelledby="matrix-heading">
+        <h2 id="matrix-heading">診断テスト（Diagnostic Matrix Probe）</h2>
+        <p class="muted">各要求を新しいカメラTrackで実行し、成功した不一致も10秒間観察します。通常キャプチャの代替設定は禁止しています。</p>
+        <div class="button-row">
+          <button id="run-matrix-button" type="button">選択カメラを診断</button>
+          <button id="run-all-matrix-button" type="button" class="secondary">全カメラを診断</button>
+        </div>
+        <p id="matrix-status" class="status">● 待機中</p>
         <div class="table-wrap">
           <table id="matrix-table">
             <thead>
               <tr>
-                <th>Camera</th>
-                <th>Requested</th>
-                <th>getUserMedia</th>
-                <th>Actual</th>
-                <th>Measured 10s</th>
-                <th>Diagnosis</th>
+                <th>カメラ</th>
+                <th>要求値</th>
+                <th>getUserMedia結果</th>
+                <th>実際の値</th>
+                <th>実際のカメラ向き</th>
+                <th>実測FPS（10秒）</th>
+                <th>判定</th>
               </tr>
             </thead>
             <tbody id="matrix-table-body"></tbody>
           </table>
         </div>
         <div class="button-row">
-          <button id="copy-json-button" type="button" class="secondary" disabled>Copy JSON</button>
-          <button id="copy-csv-button" type="button" class="secondary" disabled>Copy CSV</button>
+          <button id="copy-json-button" type="button" class="secondary" disabled>JSONをコピー</button>
+          <button id="copy-csv-button" type="button" class="secondary" disabled>CSVをコピー</button>
         </div>
-        <textarea id="matrix-export" readonly aria-label="Diagnostic matrix export" placeholder="Results will appear here after a matrix run"></textarea>
+        <textarea id="matrix-export" readonly aria-label="診断マトリクスの出力" placeholder="診断実行後に結果が表示されます"></textarea>
+      </section>
+
+      <section class="card matrix-card" aria-labelledby="constraint-probe-heading">
+        <h2 id="constraint-probe-heading">60fps条件診断（60fps Constraint Probe）</h2>
+        <p class="muted">解像度を固定しない60fps要求、基本TrackへのapplyConstraints、min / ideal条件を各カメラで比較します。60fps成立時は解像度条件を段階的に追加します。</p>
+        <div class="button-row">
+          <button id="run-constraint-probe-button" type="button">選択カメラの60fps条件を診断</button>
+          <button id="run-all-constraint-probe-button" type="button" class="secondary">全カメラの60fps条件を診断</button>
+        </div>
+        <p id="constraint-probe-status" class="status">● 待機中</p>
+        <div class="table-wrap">
+          <table id="constraint-probe-table">
+            <thead>
+              <tr>
+                <th>カメラ</th>
+                <th>試行条件</th>
+                <th>getUserMedia結果</th>
+                <th>applyConstraints結果</th>
+                <th>実際の値</th>
+                <th>実際のカメラ向き</th>
+                <th>実測FPS（10秒）</th>
+                <th>判定</th>
+              </tr>
+            </thead>
+            <tbody id="constraint-probe-table-body"></tbody>
+          </table>
+        </div>
+        <div class="button-row">
+          <button id="copy-constraint-json-button" type="button" class="secondary" disabled>JSONをコピー</button>
+          <button id="copy-constraint-csv-button" type="button" class="secondary" disabled>CSVをコピー</button>
+        </div>
+        <textarea id="constraint-probe-export" readonly aria-label="60fps条件診断の出力" placeholder="診断実行後に結果が表示されます"></textarea>
       </section>
 
       <section class="card" aria-labelledby="codec-heading">
-        <h2 id="codec-heading">Codec capabilities</h2>
-        <p class="muted">Runtime result from <code>RTCRtpSender.getCapabilities("video")</code>; no codec is assumed.</p>
-        <ul id="codec-list" class="compact-list"><li>Probing…</li></ul>
+        <h2 id="codec-heading">対応コーデック</h2>
+        <p class="muted"><code>RTCRtpSender.getCapabilities("video")</code> の実行時結果です。H.265を含め、ここに表示されてもWebRTC送信対応の確定ではありません。</p>
+        <ul id="codec-list" class="compact-list"><li>確認中…</li></ul>
       </section>
 
       <details class="card diagnostics" open>
-        <summary>Developer / Diagnostics</summary>
-        <h3>Camera device list</h3>
+        <summary>開発者向け / 診断情報</summary>
+        <h3>利用可能なカメラ一覧（enumerateDevices()）</h3>
         <pre id="devices-output">[]</pre>
-        <h3>Track capabilities</h3>
+        <h3>カメラ情報の公開タイミング</h3>
+        <pre id="exposure-output">{}</pre>
+        <h3>対応範囲（getCapabilities()）</h3>
         <pre id="capabilities-output">{}</pre>
-        <h3>Current settings</h3>
+        <h3>現在の設定（getSettings()）</h3>
         <pre id="settings-output">{}</pre>
-        <h3>Constraints</h3>
+        <h3>要求条件（getConstraints()）</h3>
         <pre id="constraints-output">{}</pre>
-        <h3>Low-latency API detection</h3>
+        <h3>低遅延API対応状況（実行時検出）</h3>
         <pre id="latency-output">{}</pre>
-        <h3>Errors</h3>
+        <h3>エラー</h3>
         <pre id="errors-output">[]</pre>
       </details>
     </main>

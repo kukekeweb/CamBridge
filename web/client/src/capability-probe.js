@@ -50,10 +50,8 @@ function copyKnownProperties(source, keys) {
 }
 
 export async function enumerateVideoInputs(mediaDevices) {
-  const devices = await mediaDevices.enumerateDevices();
-  return devices
-    .filter((device) => device.kind === "videoinput")
-    .map((device) => {
+  const devices = await enumerateVideoInputExposure(mediaDevices);
+  return devices.map((device) => {
       const result = { kind: "videoinput" };
       for (const key of ["label", "deviceId", "groupId"]) {
         if (Object.prototype.hasOwnProperty.call(device, key) && device[key]) {
@@ -62,6 +60,59 @@ export async function enumerateVideoInputs(mediaDevices) {
       }
       return result;
     });
+}
+
+export async function enumerateVideoInputsAfterPermission(mediaDevices) {
+  const exposure = await probeVideoDeviceExposure(mediaDevices);
+  return exposure.duringActiveCapture;
+}
+
+export async function enumerateVideoInputExposure(mediaDevices) {
+  const devices = await mediaDevices.enumerateDevices();
+  return devices
+    .filter((device) => device.kind === "videoinput")
+    .map((device) => ({
+      kind: "videoinput",
+      label: device.label ?? "",
+      deviceId: device.deviceId ?? "",
+      groupId: device.groupId ?? "",
+    }));
+}
+
+export function summariseVideoInputExposure(devices) {
+  const entries = devices.map((device, index) => ({
+    index: index + 1,
+    label: device.label,
+    labelPresent: Boolean(device.label),
+    deviceId: device.deviceId,
+    deviceIdPresent: Boolean(device.deviceId),
+    groupId: device.groupId,
+    groupIdPresent: Boolean(device.groupId),
+  }));
+  return {
+    cameraCount: entries.length,
+    deviceIdsPresent: entries.filter((entry) => entry.deviceIdPresent).length,
+    labelsPresent: entries.filter((entry) => entry.labelPresent).length,
+    groupIdsPresent: entries.filter((entry) => entry.groupIdPresent).length,
+    entries,
+  };
+}
+
+export async function probeVideoDeviceExposure(mediaDevices) {
+  const primingStream = await mediaDevices.getUserMedia({ audio: false, video: true });
+  let duringActiveCapture;
+  try {
+    duringActiveCapture = await enumerateVideoInputExposure(mediaDevices);
+  } finally {
+    primingStream.getTracks?.().forEach((track) => track.stop());
+  }
+  const afterPrimingTrackStopped = await enumerateVideoInputExposure(mediaDevices);
+  return {
+    duringActiveCapture,
+    afterPrimingTrackStopped,
+    duringActiveSummary: summariseVideoInputExposure(duringActiveCapture),
+    afterStoppedSummary: summariseVideoInputExposure(afterPrimingTrackStopped),
+  };
 }
 
 export function snapshotTrackCapabilities(track) {

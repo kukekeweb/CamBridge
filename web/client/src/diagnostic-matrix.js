@@ -13,10 +13,10 @@ export const MATRIX_CASES = Object.freeze([
 ]);
 
 const CSV_FIELDS = [
-  "deviceLabel", "deviceId", "requestedWidth", "requestedHeight", "requestedFPS",
+  "deviceLabel", "deviceId", "requestedDeviceId", "actualDeviceId", "groupId", "requestedWidth", "requestedHeight", "requestedFPS",
   "getUserMediaSucceeded", "exceptionName", "exceptionMessage",
   "capabilitiesWidth", "capabilitiesHeight", "capabilitiesFrameRateMin", "capabilitiesFrameRateMax",
-  "settingsWidth", "settingsHeight", "settingsFrameRate", "constraints",
+  "settingsWidth", "settingsHeight", "settingsFrameRate", "settingsDeviceId", "settingsFacingMode", "deviceIdMatches", "constraints",
   "measuredFPS1s", "measuredFPS10s", "missingFrames", "status", "diagnosis",
 ];
 
@@ -28,6 +28,9 @@ function errorFields(error) {
 }
 
 export function createDiagnosticRequest(testCase, deviceId) {
+  if (!deviceId) {
+    throw new TypeError("deviceId is required for diagnostic capture");
+  }
   const request = {
     audio: false,
     video: {
@@ -36,15 +39,16 @@ export function createDiagnosticRequest(testCase, deviceId) {
       frameRate: { exact: testCase.frameRate },
     },
   };
-  if (deviceId) {
-    request.video.deviceId = { exact: deviceId };
-  }
+  request.video.deviceId = { exact: deviceId };
   return request;
 }
 
 export function classifyDiagnosticRow(row) {
   if (!row.getUserMediaSucceeded) {
     return "getUserMedia-failed";
+  }
+  if (row.deviceIdMatches === false) {
+    return "device-mismatch";
   }
   const maxFPS = row.capabilities?.frameRate?.max;
   const actualFPS = row.settings?.frameRate;
@@ -56,6 +60,9 @@ export function classifyDiagnosticRow(row) {
   }
   if (row.requestedFPS === 60 && maxFPS >= 60 && actualFPS >= 60 && row.measuredFPS10s < 45) {
     return "C";
+  }
+  if (row.status === "match") {
+    return "match";
   }
   if (actualFPS === row.requestedFPS && (row.measuredFPS10s === null || row.measuredFPS10s >= 45)) {
     return "match";
@@ -84,23 +91,25 @@ export class DiagnosticMatrixRunner {
     }
   }
 
-  async runDevice(device) {
+  async runDevice(device, deviceIndex = 0) {
     this.stopActive();
     const rows = [];
     for (let index = 0; index < MATRIX_CASES.length; index += 1) {
-      const row = await this.runCase(device, MATRIX_CASES[index], index);
+      const row = await this.runCase(device, MATRIX_CASES[index], index, deviceIndex);
       rows.push(row);
       this.onProgress({ kind: "trial-complete", device, index, total: MATRIX_CASES.length, row });
     }
     return rows;
   }
 
-  async runCase(device, testCase, index) {
+  async runCase(device, testCase, index, deviceIndex = 0) {
     this.stopActive();
-    const request = createDiagnosticRequest(testCase, device.deviceId);
     const row = {
-      deviceLabel: device.label || "",
+      deviceLabel: device.label || `Camera ${deviceIndex + 1}`,
       deviceId: device.deviceId || "",
+      requestedDeviceId: device.deviceId || "",
+      actualDeviceId: "",
+      groupId: device.groupId || "",
       requestedWidth: testCase.width,
       requestedHeight: testCase.height,
       requestedFPS: testCase.frameRate,
@@ -115,15 +124,17 @@ export class DiagnosticMatrixRunner {
       missingFrames: null,
       status: "pending",
       diagnosis: "pending",
+      deviceIdMatches: null,
     };
 
     let stream;
     try {
+      const request = createDiagnosticRequest(testCase, device.deviceId);
       stream = await this.mediaDevices.getUserMedia(request);
     } catch (error) {
       Object.assign(row, errorFields(error), {
-        status: "getUserMedia-failed",
-        diagnosis: "getUserMedia-failed",
+        status: device.deviceId ? "getUserMedia-failed" : "device-id-missing",
+        diagnosis: device.deviceId ? "getUserMedia-failed" : "device-id-missing",
       });
       return row;
     }
@@ -142,6 +153,8 @@ export class DiagnosticMatrixRunner {
     try { row.capabilities = snapshotTrackCapabilities(track); } catch (error) { Object.assign(row, errorFields(error)); }
     try { row.settings = snapshotTrackSettings(track); } catch (error) { Object.assign(row, errorFields(error)); }
     try { row.constraints = snapshotTrackConstraints(track); } catch (error) { Object.assign(row, errorFields(error)); }
+    row.actualDeviceId = row.settings.deviceId || "";
+    row.deviceIdMatches = row.settings.deviceId === device.deviceId;
 
     try {
       await this.video.play?.();
@@ -166,7 +179,7 @@ export class DiagnosticMatrixRunner {
       row.measuredFPS1s = latestMeasurement.oneSecondFPS ?? null;
       row.measuredFPS10s = latestMeasurement.tenSecondFPS ?? null;
       row.missingFrames = latestMeasurement.missingFrames ?? null;
-      row.status = row.settings.frameRate === testCase.frameRate ? "match" : "mismatch-observed";
+      row.status = row.deviceIdMatches && row.settings.frameRate === testCase.frameRate ? "match" : "mismatch-observed";
       row.diagnosis = classifyDiagnosticRow(row);
     } catch (error) {
       Object.assign(row, errorFields(error), {
@@ -194,6 +207,8 @@ function rowField(row, field) {
   if (field === "settingsWidth") return row.settings?.width;
   if (field === "settingsHeight") return row.settings?.height;
   if (field === "settingsFrameRate") return row.settings?.frameRate;
+  if (field === "settingsDeviceId") return row.settings?.deviceId;
+  if (field === "settingsFacingMode") return row.settings?.facingMode;
   return row[field];
 }
 

@@ -40,6 +40,9 @@ function Assert-NotContains([string] $RelativePath, [string] $Text, [string] $De
     "web/client/src/frame-rate-meter.js",
     "web/client/src/capture-controller.js",
     "web/client/src/diagnostic-matrix.js",
+    "web/client/src/constraint-probe.js",
+    "web/client/src/stability-test.js",
+    "web/client/src/i18n.js",
     "web/client/src/main.js",
     "web/client/README.md",
     "windows/stage1-server/server.mjs",
@@ -47,16 +50,20 @@ function Assert-NotContains([string] $RelativePath, [string] $Text, [string] $De
     "scripts/generate-local-ca.ps1"
 ) | ForEach-Object { Assert-File $_ }
 
+Assert-Contains "web/client/index.html" 'lang="ja"' "Japanese document language missing"
 @(
-    "Camera", "Orientation", "Resolution", "Frame Rate", "Quality",
-    "Start Camera", "Requested", "Actual track", "Measured",
-    "Codec capabilities", "Capture status", "Developer / Diagnostics"
-) | ForEach-Object { Assert-Contains "web/client/index.html" $_ "Missing required UI label: $_" }
+    "camera-select", "orientation-select", "resolution-select", "frame-rate-select", "quality-select",
+    "start-button", "stop-button", "requested-value", "actual-value", "measured-value",
+    "codec-list", "capture-status", "matrix-table", "copy-json-button", "copy-csv-button",
+    "constraint-probe-table", "run-constraint-probe-button", "run-all-constraint-probe-button",
+    "copy-constraint-json-button", "copy-constraint-csv-button",
+    "start-stability-button", "stop-stability-button", "stability-status", "stability-export", "copy-stability-json-button",
+    "devices-output", "exposure-output", "capabilities-output", "settings-output", "constraints-output", "errors-output"
+) | ForEach-Object { Assert-Contains "web/client/index.html" $_ "Missing required UI element: $_" }
 
-@(
-    "Diagnostic Matrix Probe", "Run Selected Camera Matrix", "Run All Cameras",
-    "Copy JSON", "Copy CSV", "Measured 10s", "Diagnosis"
-) | ForEach-Object { Assert-Contains "web/client/index.html" $_ "Missing diagnostic matrix UI element: $_" }
+Assert-Contains "web/client/src/i18n.js" "ERROR_DESCRIPTIONS" "Centralized Japanese error descriptions missing"
+Assert-Contains "web/client/src/i18n.js" "formatDiagnosticResult" "Centralized diagnostic labels missing"
+Assert-Contains "web/client/src/i18n.js" "formatConstraintProbeResult" "Constraint probe labels missing"
 
 Assert-Contains "web/client/src/settings.js" "width: { exact: settings.resolution.width }" "Resolution must use exact constraints"
 Assert-Contains "web/client/src/settings.js" "height: { exact: settings.resolution.height }" "Resolution must use exact constraints"
@@ -65,6 +72,8 @@ Assert-Contains "web/client/index.html" 'value="60"' "60 FPS must be a Stage 1 s
 Assert-Contains "web/client/src/capability-probe.js" "getCapabilities" "Track capabilities probe missing"
 Assert-Contains "web/client/src/capability-probe.js" "getSettings" "Track settings probe missing"
 Assert-Contains "web/client/src/capability-probe.js" "getConstraints" "Track constraints probe missing"
+Assert-Contains "web/client/src/capability-probe.js" "enumerateVideoInputsAfterPermission" "Post-permission device enumeration missing"
+Assert-Contains "web/client/src/capability-probe.js" "probeVideoDeviceExposure" "Active/after-stop exposure probe missing"
 Assert-Contains "web/client/src/frame-rate-meter.js" "requestVideoFrameCallback" "Empirical frame measurement missing"
 Assert-Contains "web/client/src/capability-probe.js" 'getCapabilities("video")' "Runtime codec capability probe missing"
 Assert-Contains "web/client/src/diagnostic-matrix.js" "width: 1280, height: 720, frameRate: 30" "Diagnostic 720p30 case missing"
@@ -74,6 +83,20 @@ Assert-Contains "web/client/src/diagnostic-matrix.js" "serialiseDiagnosticCSV" "
 Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "A"' "Diagnostic A classification missing"
 Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "B"' "Diagnostic B classification missing"
 Assert-Contains "web/client/src/diagnostic-matrix.js" 'return "C"' "Diagnostic C classification missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" 'request.video.deviceId = { exact: deviceId }' "Diagnostic device ID constraint missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "deviceIdMatches" "Diagnostic device ID verification missing"
+Assert-Contains "web/client/src/diagnostic-matrix.js" "requestedDeviceId" "Requested device ID snapshot missing"
+Assert-Contains "web/client/src/constraint-probe.js" "applyConstraints" "Constraint apply probe missing"
+Assert-Contains "web/client/src/constraint-probe.js" "min: TARGET_FPS" "Constraint min/ideal probe missing"
+Assert-Contains "web/client/src/constraint-probe.js" "createWidthConstraintRequest" "Constraint resolution step missing"
+Assert-Contains "web/client/src/stability-test.js" "STABILITY_TEST_DURATION_MS" "600 second stability test duration missing"
+Assert-Contains "web/client/src/stability-test.js" "evaluateStabilityReport" "Stability PASS/FAIL evaluation missing"
+Assert-Contains "web/client/src/stability-test.js" "unhandledrejection" "Stability unhandled rejection tracking missing"
+Assert-Contains "web/client/src/stability-test.js" "visibilitychange" "Stability visibility tracking missing"
+Assert-Contains "web/client/src/stability-test.js" "pagehide" "Stability page lifecycle tracking missing"
+Assert-Contains "web/client/src/stability-test.js" "settingsChanges" "Stability settings change tracking missing"
+Assert-Contains "web/client/src/stability-test.js" "requestedFPSDeficiency" "Stability requested FPS deficiency missing"
+Assert-Contains ".github/workflows/web-stage1.yml" "tests/stability-test.test.js" "Stability unit test CI step missing"
 Assert-Contains "windows/stage1-server/server.mjs" "iPhone access URL" "IP access URL startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Certificate SAN" "Certificate SAN startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Friendly URL" "Friendly URL startup diagnostic missing"

@@ -37,6 +37,32 @@ test("diagnostic requests use exact dimensions, FPS, and selected device", () =>
   });
 });
 
+test("diagnostic requests reject an empty device id instead of falling back to the default camera", () => {
+  assert.throws(
+    () => createDiagnosticRequest({ width: 1920, height: 1080, frameRate: 60 }, ""),
+    /deviceId is required/,
+  );
+});
+
+test("matrix never sends a getUserMedia request for an empty device id", async () => {
+  let calls = 0;
+  const runner = new DiagnosticMatrixRunner({
+    mediaDevices: {
+      async getUserMedia() {
+        calls += 1;
+        throw new Error("must not be called");
+      },
+    },
+    video: {},
+  });
+
+  const rows = await runner.runDevice({ label: "Camera 1", deviceId: "", groupId: "" });
+
+  assert.equal(calls, 0);
+  assert.equal(rows.length, 8);
+  assert.ok(rows.every((row) => row.diagnosis === "device-id-missing"));
+});
+
 test("diagnostic classification keeps A, B, and C causes distinct", () => {
   assert.equal(classifyDiagnosticRow({
     getUserMediaSucceeded: true,
@@ -59,6 +85,27 @@ test("diagnostic classification keeps A, B, and C causes distinct", () => {
   }), "C");
 });
 
+test("device id mismatch is classified separately from FPS causes", () => {
+  assert.equal(classifyDiagnosticRow({
+    getUserMediaSucceeded: true,
+    deviceIdMatches: false,
+    requestedFPS: 60,
+    capabilities: { frameRate: { max: 60 } },
+    settings: { frameRate: 30, deviceId: "front" },
+  }), "device-mismatch");
+});
+
+test("a row already marked match remains a successful diagnosis when measurement is unavailable", () => {
+  assert.equal(classifyDiagnosticRow({
+    getUserMediaSucceeded: true,
+    deviceIdMatches: true,
+    status: "match",
+    requestedFPS: 30,
+    settings: { frameRate: 30 },
+    measuredFPS10s: null,
+  }), "match");
+});
+
 test("runner uses a fresh track for every case and observes mismatch for ten seconds", async () => {
   const tracks = [];
   const constraints = [];
@@ -71,7 +118,7 @@ test("runner uses a fresh track for every case and observes mismatch for ten sec
         const track = {
           stopped: false,
           getCapabilities: () => ({ frameRate: { min: 1, max: 60 } }),
-          getSettings: () => ({ width: request.video.width.exact, height: request.video.height.exact, frameRate: 30 }),
+          getSettings: () => ({ width: request.video.width.exact, height: request.video.height.exact, frameRate: 30, deviceId: "back", facingMode: "environment" }),
           getConstraints: () => request.video,
           stop() { this.stopped = true; },
         };
@@ -103,6 +150,8 @@ test("runner uses a fresh track for every case and observes mismatch for ten sec
   assert.equal(rows[3].status, "mismatch-observed");
   assert.equal(rows[3].measuredFPS10s, 30);
   assert.equal(rows[3].diagnosis, "B");
+  assert.equal(rows[3].deviceIdMatches, true);
+  assert.equal(rows[3].settings.facingMode, "environment");
   assert.ok(tracks.every((track) => track.stopped));
   assert.deepEqual(constraints[7].video.deviceId, { exact: "back" });
 });
@@ -120,7 +169,7 @@ test("diagnostic CSV includes exception and serialized browser snapshots", () =>
     constraints: { width: { exact: 1920 } },
   }]);
 
-  assert.match(csv, /deviceLabel,deviceId,requestedWidth/);
+  assert.match(csv, /deviceLabel,deviceId,requestedDeviceId,actualDeviceId,groupId,requestedWidth/);
   assert.match(csv, /OverconstrainedError/);
   assert.match(csv, /"\{""width"":\{""exact"":1920\}\}"/);
 });

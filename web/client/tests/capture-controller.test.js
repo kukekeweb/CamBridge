@@ -33,7 +33,7 @@ test("capture rejection is reported as unavailable without retry", async () => {
   assert.equal(calls, 1);
   assert.equal(result.ok, false);
   assert.equal(result.status, "unsupported");
-  assert.match(result.message, /1080p60 unavailable/);
+  assert.match(result.message, /1920×1080 \/ 60fpsは利用できません/);
 });
 
 test("settings mismatch stops the track and never falls back", async () => {
@@ -58,7 +58,7 @@ test("settings mismatch stops the track and never falls back", async () => {
   assert.equal(result.ok, false);
   assert.equal(result.status, "mismatch");
   assert.deepEqual(result.actualSettings, { width: 1920, height: 1080, frameRate: 30 });
-  assert.match(result.message, /does not match requested/);
+  assert.match(result.message, /実際のカメラ設定が要求値と一致しません/);
 });
 
 test("successful capture attaches the stream and starts empirical measurement", async () => {

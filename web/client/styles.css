@@ -30,6 +30,7 @@ video { display: block; width: 100%; max-height: 60vh; object-fit: contain; back
 .status { margin: .85rem 0 0; color: #e8c76c; font-weight: 700; }
 .status.running { color: #65e39c; }
 .status.error { color: #ff8d8d; }
+.stability-live-metrics { margin: 1rem 0; }
 dl { margin: 0; display: grid; gap: .65rem; }
 dl div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #2b3c5b; padding-bottom: .45rem; }
 dt { color: #a9b9d4; } dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
