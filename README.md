@@ -95,6 +95,26 @@ Safari session's actual capabilities, settings, measured frames, and codec
 list. A simulator or published device specification is not an acceptance
 result.
 
+The current real-device evidence is recorded in
+[`docs/validation/web-stage1-iphone17-ios27.md`](docs/validation/web-stage1-iphone17-ios27.md).
+It confirms a rear-camera 1920×1080@60 exact Track with measured FPS of about
+59.94 and zero requested-FPS deficiency. Formal Web Stage 1 PASS remains
+pending the 600-second Stability Test. H.264/H.265/VP8/VP9/AV1 entries are
+capability-only observations until WebRTC negotiation and actual encoder/
+decoder paths are verified.
+
+The Stage 1 page includes a 600-second 1080p60 Stability Test. Select the rear
+camera, start the test, keep Safari in the foreground for ten minutes, and
+copy the resulting JSON. A short FPS dip alone does not fail the test; the
+report evaluates exact settings, Track events, settings changes, page
+lifecycle, JavaScript errors, and completion.
+
+Stage 2 is design-only at this point. The design draft and implementation plan
+are [`docs/superpowers/specs/2026-08-29-cambridge-stage2-design-draft.md`](docs/superpowers/specs/2026-08-29-cambridge-stage2-design-draft.md)
+and [`docs/superpowers/plans/2026-08-29-cambridge-stage2-implementation-plan-draft.md`](docs/superpowers/plans/2026-08-29-cambridge-stage2-implementation-plan-draft.md).
+No WebRTC sender, receiver, decoder, D3D11, or Virtual Camera source has been
+added for Stage 2.
+
 ## Validation
 
 ```powershell
