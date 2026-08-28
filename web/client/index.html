@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#101827">
+    <title>CamBridge Stage 1</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header>
+        <p class="eyebrow">LAN camera capability probe</p>
+        <h1>CamBridge</h1>
+        <p class="lede">Safari capture only. WebRTC transport is intentionally not enabled in Stage 1.</p>
+      </header>
+
+      <section class="card controls" aria-labelledby="settings-heading">
+        <h2 id="settings-heading">Camera settings</h2>
+        <label>Camera
+          <select id="camera-select"></select>
+        </label>
+        <label>Orientation
+          <select id="orientation-select">
+            <option value="auto">Auto</option>
+            <option value="portrait">Portrait</option>
+            <option value="landscape">Landscape</option>
+          </select>
+        </label>
+        <label>Resolution
+          <select id="resolution-select">
+            <option value="1920x1080">1920×1080</option>
+            <option value="2560x1440">2560×1440</option>
+            <option value="3840x2160">3840×2160</option>
+          </select>
+        </label>
+        <label>Frame Rate
+          <select id="frame-rate-select">
+            <option value="30">30</option>
+            <option value="60" selected>60</option>
+          </select>
+        </label>
+        <label>Quality
+          <select id="quality-select">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+          </select>
+          <small>Stage 2 bitrate preset only; no encoder is active yet.</small>
+        </label>
+        <div class="button-row">
+          <button id="start-button" type="button">Start Camera</button>
+          <button id="stop-button" type="button" class="secondary">Stop Camera</button>
+        </div>
+      </section>
+
+      <section class="card preview-card" aria-labelledby="preview-heading">
+        <h2 id="preview-heading">Preview</h2>
+        <div class="video-frame">
+          <video id="camera-preview" autoplay muted playsinline></video>
+          <p id="preview-placeholder">Camera is stopped</p>
+        </div>
+        <p id="capture-status" class="status">● Idle</p>
+      </section>
+
+      <section class="card metrics" aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading">Capture metrics</h2>
+        <dl>
+          <div><dt>Requested</dt><dd id="requested-value">1920×1080 @ 60</dd></div>
+          <div><dt>Actual track</dt><dd id="actual-value">—</dd></div>
+          <div><dt>Measured</dt><dd id="measured-value">—</dd></div>
+          <div><dt>Frame counter</dt><dd id="frame-counter-value">—</dd></div>
+          <div><dt>Missing estimate</dt><dd id="missing-value">—</dd></div>
+          <div><dt>Output plan</dt><dd id="output-plan-value">—</dd></div>
+        </dl>
+      </section>
+
+      <section class="card" aria-labelledby="codec-heading">
+        <h2 id="codec-heading">Codec capabilities</h2>
+        <p class="muted">Runtime result from <code>RTCRtpSender.getCapabilities("video")</code>; no codec is assumed.</p>
+        <ul id="codec-list" class="compact-list"><li>Probing…</li></ul>
+      </section>
+
+      <details class="card diagnostics" open>
+        <summary>Developer / Diagnostics</summary>
+        <h3>Camera device list</h3>
+        <pre id="devices-output">[]</pre>
+        <h3>Track capabilities</h3>
+        <pre id="capabilities-output">{}</pre>
+        <h3>Current settings</h3>
+        <pre id="settings-output">{}</pre>
+        <h3>Constraints</h3>
+        <pre id="constraints-output">{}</pre>
+        <h3>Low-latency API detection</h3>
+        <pre id="latency-output">{}</pre>
+        <h3>Errors</h3>
+        <pre id="errors-output">[]</pre>
+      </details>
+    </main>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
