@@ -22,3 +22,8 @@ build/
 .env
 .env.*
 !.env.example
+
+# Web client dependencies and local HTTPS key material
+web/client/node_modules/
+windows/stage1-server/certificates/*
+!windows/stage1-server/certificates/.gitkeep
