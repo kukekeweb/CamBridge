@@ -15,6 +15,7 @@ build/
 *.mobileprovision
 *.provisionprofile
 *.p12
+*.pfx
 *.cer
 *.key
 
