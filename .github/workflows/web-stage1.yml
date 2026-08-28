@@ -22,13 +22,16 @@ jobs:
           node-version: 20
 
       - name: Run Web Client unit tests
-        run: npm test --prefix web/client
+        working-directory: web/client
+        run: npm test
 
       - name: Run 1080p60 stability unit tests
-        run: npm test --prefix web/client -- tests/stability-test.test.js
+        working-directory: web/client
+        run: npm test -- tests/stability-test.test.js
 
       - name: Check Web Client JavaScript syntax
-        run: npm run check --prefix web/client
+        working-directory: web/client
+        run: npm run check
 
       - name: Check HTTPS server JavaScript syntax
         run: node --check windows/stage1-server/server.mjs
