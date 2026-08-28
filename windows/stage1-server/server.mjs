@@ -116,7 +116,7 @@ async function resolveLocalHostname() {
   }
 }
 
-function startMdns(port, enabled) {
+async function startMdns(port, enabled) {
   if (!enabled) {
     return { status: "disabled", child: null };
   }
@@ -125,8 +125,26 @@ function startMdns(port, enabled) {
     return { status: "unavailable (dns-sd.exe not found)", child: null };
   }
   const child = spawn("dns-sd.exe", ["-R", SERVICE_NAME, "_cambridge._tcp", "local.", String(port)], {
-    stdio: "ignore",
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
+  });
+  let diagnostics = "";
+  child.stdout.on("data", (chunk) => { diagnostics += chunk.toString(); });
+  child.stderr.on("data", (chunk) => { diagnostics += chunk.toString(); });
+  const status = await new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (!settled) {
+        settled = true;
+        resolve(value);
+      }
+    };
+    child.once("error", (error) => finish(`unavailable (dns-sd.exe error: ${error.message})`));
+    child.once("close", (code) => {
+      const detail = diagnostics.trim().replace(/\s+/g, " ");
+      finish(`unavailable (DNS-SD exited ${code}${detail ? `: ${detail}` : ""})`);
+    });
+    setTimeout(() => finish("available (DNS-SD process running)"), 3_000);
   });
   child.once("error", (error) => console.error(`Bonjour service error: ${error.message}`));
   child.once("close", (code) => {
@@ -134,7 +152,7 @@ function startMdns(port, enabled) {
       console.error(`Bonjour service stopped with exit code ${code}`);
     }
   });
-  return { status: "available (DNS-SD registration requested)", child };
+  return { status, child };
 }
 
 async function serveFile(request, response, webRoot) {
@@ -211,7 +229,7 @@ async function main() {
       console.error(`Request error: ${error.message}`);
     });
   });
-  const mdns = startMdns(options.port, options.mdns);
+  const mdns = await startMdns(options.port, options.mdns);
   const localHost = await resolveLocalHostname();
   const friendlyHost = localHost && sanContains(sanEntries, localHost.hostname) ? localHost.hostname : null;
 
