@@ -97,6 +97,7 @@ Assert-Contains "web/client/src/stability-test.js" "pagehide" "Stability page li
 Assert-Contains "web/client/src/stability-test.js" "settingsChanges" "Stability settings change tracking missing"
 Assert-Contains "web/client/src/stability-test.js" "requestedFPSDeficiency" "Stability requested FPS deficiency missing"
 Assert-Contains ".github/workflows/web-stage1.yml" "tests/stability-test.test.js" "Stability unit test CI step missing"
+Assert-Contains "web/client/package.json" "tests/run-tests.mjs" "Cross-version Node test runner missing"
 Assert-Contains "windows/stage1-server/server.mjs" "iPhone access URL" "IP access URL startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Certificate SAN" "Certificate SAN startup diagnostic missing"
 Assert-Contains "windows/stage1-server/server.mjs" "Friendly URL" "Friendly URL startup diagnostic missing"
