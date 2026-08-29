@@ -108,20 +108,48 @@ void PrintIpcStatus() {
              << L" last read sequence=" << status.lastReadSequence << L"\n";
 }
 
+class ChildRuntime final {
+ public:
+  ChildRuntime() = default;
+
+  HRESULT Initialize() {
+    const HRESULT comHr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    comInitialized_ = SUCCEEDED(comHr);
+    PrintHr(L"CoInitializeEx", comHr);
+    if (FAILED(comHr) && comHr != RPC_E_CHANGED_MODE) return comHr;
+
+    const HRESULT mfHr = MFStartup(MF_VERSION);
+    std::wcout << L"MFStartup version: 0x" << std::hex << MF_VERSION << std::dec << L"\n";
+    PrintHr(L"MFStartup(MF_VERSION)", mfHr);
+    if (FAILED(mfHr)) return mfHr;
+    mfStarted_ = true;
+    return S_OK;
+  }
+
+  ~ChildRuntime() {
+    if (mfStarted_) {
+      MFShutdown();
+      std::wcout << L"MFShutdown: executed\n";
+    }
+    if (comInitialized_) {
+      CoUninitialize();
+      std::wcout << L"CoUninitialize: executed\n";
+    }
+  }
+
+  ChildRuntime(const ChildRuntime&) = delete;
+  ChildRuntime& operator=(const ChildRuntime&) = delete;
+
+ private:
+  bool comInitialized_ = false;
+  bool mfStarted_ = false;
+};
+
 int RunCaptureChild() {
   std::wcout.setf(std::ios::unitbuf);
-  HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-  const bool comInitialized = SUCCEEDED(hr);
-  if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
-    PrintHr(L"CoInitializeEx", hr);
-    return 1;
-  }
-  hr = MFStartup(MF_VERSION);
-  if (FAILED(hr)) {
-    PrintHr(L"MFStartup", hr);
-    if (comInitialized) CoUninitialize();
-    return 1;
-  }
+  ChildRuntime runtime;
+  HRESULT hr = runtime.Initialize();
+  if (FAILED(hr)) return 1;
 
   ComPtr<IMFAttributes> attributes;
   hr = MFCreateAttributes(&attributes, 2);
@@ -236,8 +264,6 @@ int RunCaptureChild() {
   }
   std::wcout << L"Capture child result: device=" << (found ? L"found" : L"not-found")
              << L" samples=" << frames << L"\n";
-  MFShutdown();
-  if (comInitialized) CoUninitialize();
   return found && frames >= kTargetSamples ? 0 : 1;
 }
 

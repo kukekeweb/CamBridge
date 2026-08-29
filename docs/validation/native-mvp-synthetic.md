@@ -201,6 +201,28 @@ Copy-Item : 別のプロセスで使用されているため、プロセスは�
 
 旧launcherの失敗後に残ったProgram Files版Synthetic Publisherが、次回実行時に自身のexeをロックしていた事例も確認した。installerはコピー前に、実行パスがCamBridge install root配下であるPublisherだけを停止する。パスを取得できない別プロセスは停止せず、誤って他のPublisherを終了しない。
 
+## Capture child Media Foundation lifecycle revalidation
+
+The capture probe was instrumented so the child process initializes its own COM and Media Foundation runtime before touching Media Foundation APIs. A direct probe run produced:
+
+```text
+CoInitializeEx: 0x0 (success; S_OK)
+MFStartup version: 0x20070
+MFStartup(MF_VERSION): 0x0 (success; S_OK)
+MFCreateSourceReaderFromMediaSource: 0x0 (success; S_OK)
+SetCurrentMediaType: 0x0 (success; S_OK)
+GetCurrentMediaType: 0x0 (success; S_OK)
+Selected type: NV12 1920x1080 fps=60/1
+IMFSourceReader::ReadSample: 0xc00d36b6 (failure; MF_E_NOT_INITIALIZED)
+Samples received: 0
+MFShutdown: executed
+CoUninitialize: executed
+```
+
+This proves that the capture child performs `MFStartup(MF_VERSION)` successfully and pairs it with `MFShutdown`; the child-process initialization omission is therefore not the cause of the observed `ReadSample` failure. The failure remains on the Media Source / Frame Server side of the sample-delivery boundary. No Media Source, allocator, IPC, or WebRTC change is made by this diagnostic commit.
+
+The requested A/B experiment (“without `MFStartup` must return `MF_E_NOT_INITIALIZED`, with it must not”) was not added as a passing regression test because the Media Foundation enumeration/sample APIs exercised on this Windows host returned `S_OK` even without an explicit startup. Committing that assertion would encode a false platform assumption. The reliable regression evidence is the child’s explicit startup/shutdown output above and the existing Media Source tests.
+
 ## CurrentUser Virtual Camera live gate
 
 標準ユーザーで次を実行した。
