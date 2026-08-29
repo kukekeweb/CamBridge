@@ -1,4 +1,5 @@
 #include "cambridge_media_source.h"
+#include "diagnostic_log.h"
 
 #include <Windows.h>
 #include <objbase.h>
@@ -15,22 +16,38 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
 }
 
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID iid, void** result) {
-  if (result == nullptr) return E_POINTER;
+  if (result == nullptr) {
+    cambridge::native::LogControlEvent(L"DLL", L"DllGetClassObject", E_POINTER);
+    return E_POINTER;
+  }
   *result = nullptr;
-  if (clsid != kCamBridgeMediaSourceClsid) return CLASS_E_CLASSNOTAVAILABLE;
+  if (clsid != kCamBridgeMediaSourceClsid) {
+    cambridge::native::LogControlEvent(L"DLL", L"DllGetClassObject", CLASS_E_CLASSNOTAVAILABLE);
+    return CLASS_E_CLASSNOTAVAILABLE;
+  }
   auto factory = Microsoft::WRL::Make<CamBridgeClassFactory>();
-  if (!factory) return E_OUTOFMEMORY;
-  return factory->QueryInterface(iid, result);
+  if (!factory) {
+    cambridge::native::LogControlEvent(L"DLL", L"DllGetClassObject", E_OUTOFMEMORY);
+    return E_OUTOFMEMORY;
+  }
+  const HRESULT hr = factory->QueryInterface(iid, result);
+  cambridge::native::LogControlEvent(L"DLL", L"DllGetClassObject", hr);
+  return hr;
 }
 
 STDAPI DllCanUnloadNow() {
+  cambridge::native::LogControlEvent(L"DLL", L"DllCanUnloadNow", S_FALSE);
   return S_FALSE;
 }
 
 STDAPI DllRegisterServer() {
-  return cambridge::native::RegisterCamBridgeMediaSource(true);
+  const HRESULT hr = cambridge::native::RegisterCamBridgeMediaSource(true);
+  cambridge::native::LogControlEvent(L"DLL", L"DllRegisterServer", hr);
+  return hr;
 }
 
 STDAPI DllUnregisterServer() {
-  return cambridge::native::UnregisterCamBridgeMediaSource(true);
+  const HRESULT hr = cambridge::native::UnregisterCamBridgeMediaSource(true);
+  cambridge::native::LogControlEvent(L"DLL", L"DllUnregisterServer", hr);
+  return hr;
 }

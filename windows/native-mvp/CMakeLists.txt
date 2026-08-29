@@ -18,6 +18,7 @@ target_compile_definitions(cambridge_frame_ipc PUBLIC UNICODE _UNICODE NOMINMAX 
 target_link_libraries(cambridge_frame_ipc PUBLIC kernel32)
 
 add_library(cambridge_media_source SHARED
+  virtual-camera/diagnostic_log.cpp
   virtual-camera/cambridge_media_source.cpp
   virtual-camera/dllmain.cpp
 )

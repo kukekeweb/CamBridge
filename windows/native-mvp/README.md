@@ -35,6 +35,23 @@ PowerShell, then run CamBridge normally without elevation:
 .\cambridge_virtual_camera_manager.exe --install --source .\cambridge_media_source.dll --machine
 ```
 
+From the repository root, the reproducible one-time flow is:
+
+```text
+Install-CamBridge-Native.cmd
+```
+
+Run it as Administrator after building. It registers the machine-wide Media Source,
+verifies the HKLM `InprocServer32` values, attempts virtual-camera Start, and runs the
+capture probe even when an earlier step fails. The reverse operation is
+`Uninstall-CamBridge-Native.cmd` (also elevated when HKLM removal is required).
+
+The Media Source writes control-path diagnostics to
+`C:\ProgramData\CamBridge\logs\media-source-<pid>.log` when possible. Logs are
+PID-scoped so the CamBridge process and Windows Frame Server process can be separated.
+They include DLL/class factory, QueryInterface IID/HRESULT, activation, initialization,
+descriptor, allocator, Start/Stop/Shutdown events, and no per-frame messages.
+
 The manager checks the actual Windows build number (not the ProductName string) and
 requires build 22000 or newer. `--machine` writes HKLM and therefore requires UAC;
 do not use it as the normal startup path. The current implementation records the

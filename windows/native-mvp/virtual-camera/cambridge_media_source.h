@@ -30,9 +30,16 @@ class CamBridgeMediaSource;
 
 class CamBridgeMediaStream final
     : public Microsoft::WRL::RuntimeClass<
-          Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFMediaStream2> {
+          Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFMediaStream2,
+          IMFMediaStream, IMFMediaEventGenerator> {
+  using RuntimeBase = Microsoft::WRL::RuntimeClass<
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFMediaStream2,
+      IMFMediaStream, IMFMediaEventGenerator>;
+
  public:
   CamBridgeMediaStream() = default;
+
+  IFACEMETHOD(QueryInterface)(REFIID, void**) override;
 
   HRESULT Initialize(CamBridgeMediaSource* parent);
   HRESULT Start(IMFMediaType* mediaType);
@@ -82,9 +89,17 @@ class CamBridgeMediaStream final
 class CamBridgeMediaSource final
     : public Microsoft::WRL::RuntimeClass<
           Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFMediaSourceEx,
-          IMFGetService, IKsControl, IMFSampleAllocatorControl> {
+          IMFMediaSource, IMFMediaEventGenerator, IMFGetService, IKsControl,
+          IMFSampleAllocatorControl> {
+  using RuntimeBase = Microsoft::WRL::RuntimeClass<
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFMediaSourceEx,
+      IMFMediaSource, IMFMediaEventGenerator, IMFGetService, IKsControl,
+      IMFSampleAllocatorControl>;
+
  public:
   CamBridgeMediaSource() = default;
+
+  IFACEMETHOD(QueryInterface)(REFIID, void**) override;
 
   HRESULT Initialize(IMFAttributes* activationAttributes);
 
@@ -132,7 +147,11 @@ class CamBridgeMediaSource final
 class CamBridgeMediaSourceActivate final
     : public Microsoft::WRL::RuntimeClass<
           Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFActivate> {
+  using RuntimeBase = Microsoft::WRL::RuntimeClass<
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IMFActivate>;
+
  public:
+  IFACEMETHOD(QueryInterface)(REFIID, void**) override;
   HRESULT Initialize();
   IFACEMETHOD(ActivateObject)(REFIID, void**) override;
   IFACEMETHOD(ShutdownObject)() override;
@@ -177,7 +196,11 @@ class CamBridgeMediaSourceActivate final
 class CamBridgeClassFactory final
     : public Microsoft::WRL::RuntimeClass<
           Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IClassFactory> {
+  using RuntimeBase = Microsoft::WRL::RuntimeClass<
+      Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>, IClassFactory>;
+
  public:
+  IFACEMETHOD(QueryInterface)(REFIID, void**) override;
   IFACEMETHOD(CreateInstance)(IUnknown*, REFIID, void**) override;
   IFACEMETHOD(LockServer)(BOOL) override;
 };

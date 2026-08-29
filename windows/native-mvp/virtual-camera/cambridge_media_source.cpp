@@ -1,4 +1,5 @@
 #include "cambridge_media_source.h"
+#include "diagnostic_log.h"
 
 #include <ks.h>
 #include <ksmedia.h>
@@ -51,10 +52,37 @@ void FillBlack(BYTE* data, std::size_t bytes, std::uint32_t stride, std::uint32_
 
 }  // namespace
 
+HRESULT CamBridgeMediaStream::QueryInterface(REFIID iid, void** result) {
+  const HRESULT hr = RuntimeBase::QueryInterface(iid, result);
+  LogQueryInterface(L"CamBridgeMediaStream", iid, hr);
+  return hr;
+}
+
+HRESULT CamBridgeMediaSource::QueryInterface(REFIID iid, void** result) {
+  const HRESULT hr = RuntimeBase::QueryInterface(iid, result);
+  LogQueryInterface(L"CamBridgeMediaSource", iid, hr);
+  return hr;
+}
+
+HRESULT CamBridgeMediaSourceActivate::QueryInterface(REFIID iid, void** result) {
+  const HRESULT hr = RuntimeBase::QueryInterface(iid, result);
+  LogQueryInterface(L"CamBridgeMediaSourceActivate", iid, hr);
+  return hr;
+}
+
+HRESULT CamBridgeClassFactory::QueryInterface(REFIID iid, void** result) {
+  const HRESULT hr = RuntimeBase::QueryInterface(iid, result);
+  LogQueryInterface(L"CamBridgeClassFactory", iid, hr);
+  return hr;
+}
+
 HRESULT CamBridgeMediaStream::Initialize(CamBridgeMediaSource* parent) {
+  LogControlEvent(L"CamBridgeMediaStream", L"Initialize.begin", S_OK);
   if (parent == nullptr) return E_INVALIDARG;
   std::lock_guard lock(mutex_);
-  parent_ = parent;
+  auto* mediaSource = static_cast<IMFMediaSource*>(
+      static_cast<IMFMediaSourceEx*>(parent));
+  parent_ = mediaSource;
   HRESULT hr = MFCreateEventQueue(&events_);
   if (FAILED(hr)) return hr;
   Microsoft::WRL::ComPtr<IMFMediaType> type60;
@@ -66,6 +94,13 @@ HRESULT CamBridgeMediaStream::Initialize(CamBridgeMediaSource* parent) {
   std::array<IMFMediaType*, 3> types{type60.Get(), type30.Get(), type720.Get()};
   if (FAILED(hr = MFCreateStreamDescriptor(0, static_cast<DWORD>(types.size()), types.data(),
                                            &descriptor_))) return hr;
+  if (FAILED(hr = descriptor_->SetGUID(MF_DEVICESTREAM_STREAM_CATEGORY,
+                                       PINNAME_VIDEO_CAPTURE))) return hr;
+  if (FAILED(hr = descriptor_->SetUINT32(MF_DEVICESTREAM_STREAM_ID, 0))) return hr;
+  if (FAILED(hr = descriptor_->SetUINT32(MF_DEVICESTREAM_FRAMESERVER_SHARED, 1))) return hr;
+  if (FAILED(hr = descriptor_->SetUINT32(
+                MF_DEVICESTREAM_ATTRIBUTE_FRAMESOURCE_TYPES,
+                MFFrameSourceTypes::MFFrameSourceTypes_Color))) return hr;
   if (FAILED(hr = MFCreateAttributes(&attributes_, 4))) return hr;
   attributes_->SetGUID(MF_DEVICESTREAM_STREAM_CATEGORY, PINNAME_VIDEO_CAPTURE);
   attributes_->SetUINT32(MF_DEVICESTREAM_STREAM_ID, 0);
@@ -77,6 +112,7 @@ HRESULT CamBridgeMediaStream::Initialize(CamBridgeMediaSource* parent) {
   if (FAILED(hr = handler->SetCurrentMediaType(type60.Get()))) return hr;
   mediaType_ = type60;
   (void)reader_.Open();
+  LogControlEvent(L"CamBridgeMediaStream", L"Initialize.end", S_OK);
   return S_OK;
 }
 
@@ -85,6 +121,7 @@ HRESULT CamBridgeMediaStream::CheckState() const {
 }
 
 HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
+  LogControlEvent(L"CamBridgeMediaStream", L"Start.begin", S_OK);
   if (mediaType == nullptr) return E_INVALIDARG;
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
@@ -99,19 +136,26 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   stride_ = width;
   nextTimestamp100ns_ = 0;
   state_ = MF_STREAM_STATE_RUNNING;
-  return events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);
+  hr = events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);
+  LogControlEvent(L"CamBridgeMediaStream", L"Start.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaStream::Stop(bool sendEvent) {
+  LogControlEvent(L"CamBridgeMediaStream", L"Stop.begin", S_OK);
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   state_ = MF_STREAM_STATE_STOPPED;
-  if (sendEvent) return events_->QueueEventParamVar(MEStreamStopped, GUID_NULL, S_OK, nullptr);
-  return S_OK;
+  if (sendEvent) {
+    hr = events_->QueueEventParamVar(MEStreamStopped, GUID_NULL, S_OK, nullptr);
+  }
+  LogControlEvent(L"CamBridgeMediaStream", L"Stop.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaStream::Shutdown() {
+  LogControlEvent(L"CamBridgeMediaStream", L"Shutdown.begin", S_OK);
   std::lock_guard lock(mutex_);
   if (shutdown_) return S_OK;
   shutdown_ = true;
@@ -124,16 +168,19 @@ HRESULT CamBridgeMediaStream::Shutdown() {
   if (events_) events_->Shutdown();
   events_.Reset();
   reader_.Close();
+  LogControlEvent(L"CamBridgeMediaStream", L"Shutdown.end", S_OK);
   return S_OK;
 }
 
 HRESULT CamBridgeMediaStream::SetSampleAllocator(IMFVideoSampleAllocator* allocator) {
+  LogControlEvent(L"CamBridgeMediaStream", L"SetSampleAllocator.begin", S_OK);
   if (allocator == nullptr) return E_POINTER;
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   if (state_ == MF_STREAM_STATE_RUNNING) return MF_E_INVALIDREQUEST;
   sampleAllocator_ = allocator;
+  LogControlEvent(L"CamBridgeMediaStream", L"SetSampleAllocator.end", S_OK);
   return S_OK;
 }
 
@@ -247,12 +294,14 @@ HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
 }
 
 HRESULT CamBridgeMediaStream::SetStreamState(MF_STREAM_STATE state) {
+  LogControlEvent(L"CamBridgeMediaStream", L"SetStreamState.begin", S_OK);
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   if (state == MF_STREAM_STATE_RUNNING) state_ = state;
   else if (state == MF_STREAM_STATE_STOPPED || state == MF_STREAM_STATE_PAUSED) state_ = state;
   else return MF_E_INVALID_STATE_TRANSITION;
+  LogControlEvent(L"CamBridgeMediaStream", L"SetStreamState.end", S_OK);
   return S_OK;
 }
 
@@ -266,6 +315,7 @@ HRESULT CamBridgeMediaStream::GetStreamState(MF_STREAM_STATE* state) {
 }
 
 HRESULT CamBridgeMediaSource::Initialize(IMFAttributes* activationAttributes) {
+  LogControlEvent(L"CamBridgeMediaSource", L"Initialize.begin", S_OK);
   std::lock_guard lock(mutex_);
   if (initialized_) return MF_E_ALREADY_INITIALIZED;
   HRESULT hr = MFCreateEventQueue(&events_);
@@ -302,6 +352,7 @@ HRESULT CamBridgeMediaSource::Initialize(IMFAttributes* activationAttributes) {
   if (FAILED(hr = MFCreatePresentationDescriptor(1, descriptors, &presentation_))) return hr;
   presentation_->SelectStream(0);
   initialized_ = true;
+  LogControlEvent(L"CamBridgeMediaSource", L"Initialize.end", S_OK);
   return S_OK;
 }
 
@@ -338,15 +389,19 @@ HRESULT CamBridgeMediaSource::QueueEvent(MediaEventType type, REFGUID extendedTy
 }
 
 HRESULT CamBridgeMediaSource::CreatePresentationDescriptor(IMFPresentationDescriptor** descriptor) {
+  LogControlEvent(L"CamBridgeMediaSource", L"CreatePresentationDescriptor.begin", S_OK);
   if (descriptor == nullptr) return E_POINTER;
   std::lock_guard lock(mutex_);
   if (shutdown_ || !presentation_) return MF_E_SHUTDOWN;
-  return presentation_->Clone(descriptor);
+  const HRESULT hr = presentation_->Clone(descriptor);
+  LogControlEvent(L"CamBridgeMediaSource", L"CreatePresentationDescriptor.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::GetCharacteristics(DWORD* characteristics) {
   if (characteristics == nullptr) return E_POINTER;
   *characteristics = MFMEDIASOURCE_IS_LIVE;
+  LogControlEvent(L"CamBridgeMediaSource", L"GetCharacteristics", S_OK);
   return S_OK;
 }
 
@@ -354,6 +409,7 @@ HRESULT CamBridgeMediaSource::Pause() { return MF_E_INVALID_STATE_TRANSITION;
 }
 
 HRESULT CamBridgeMediaSource::Shutdown() {
+  LogControlEvent(L"CamBridgeMediaSource", L"Shutdown.begin", S_OK);
   std::lock_guard lock(mutex_);
   if (shutdown_) return S_OK;
   shutdown_ = true;
@@ -363,11 +419,13 @@ HRESULT CamBridgeMediaSource::Shutdown() {
   presentation_.Reset();
   attributes_.Reset();
   events_.Reset();
+  LogControlEvent(L"CamBridgeMediaSource", L"Shutdown.end", S_OK);
   return S_OK;
 }
 
 HRESULT CamBridgeMediaSource::Start(IMFPresentationDescriptor* descriptor, const GUID*,
                                     const PROPVARIANT*) {
+  LogControlEvent(L"CamBridgeMediaSource", L"Start.begin", S_OK);
   if (descriptor == nullptr) return E_POINTER;
   std::lock_guard lock(mutex_);
   if (shutdown_ || !stream_ || !events_) return MF_E_SHUTDOWN;
@@ -381,29 +439,40 @@ HRESULT CamBridgeMediaSource::Start(IMFPresentationDescriptor* descriptor, const
   Microsoft::WRL::ComPtr<IMFMediaType> type;
   if (FAILED(hr = handler->GetCurrentMediaType(&type))) return hr;
   if (FAILED(hr = stream_->Start(type.Get()))) return hr;
-  return events_->QueueEventParamVar(MESourceStarted, GUID_NULL, S_OK, nullptr);
+  hr = events_->QueueEventParamVar(MESourceStarted, GUID_NULL, S_OK, nullptr);
+  LogControlEvent(L"CamBridgeMediaSource", L"Start.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::Stop() {
+  LogControlEvent(L"CamBridgeMediaSource", L"Stop.begin", S_OK);
   std::lock_guard lock(mutex_);
   if (shutdown_ || !stream_ || !events_) return MF_E_SHUTDOWN;
   HRESULT hr = stream_->Stop(true);
   if (FAILED(hr)) return hr;
-  return events_->QueueEventParamVar(MESourceStopped, GUID_NULL, S_OK, nullptr);
+  hr = events_->QueueEventParamVar(MESourceStopped, GUID_NULL, S_OK, nullptr);
+  LogControlEvent(L"CamBridgeMediaSource", L"Stop.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::GetSourceAttributes(IMFAttributes** attributes) {
+  LogControlEvent(L"CamBridgeMediaSource", L"GetSourceAttributes.begin", S_OK);
   if (attributes == nullptr) return E_POINTER;
   std::lock_guard lock(mutex_);
   if (shutdown_ || !attributes_) return MF_E_SHUTDOWN;
-  return attributes_.CopyTo(attributes);
+  const HRESULT hr = attributes_.CopyTo(attributes);
+  LogControlEvent(L"CamBridgeMediaSource", L"GetSourceAttributes.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::GetStreamAttributes(DWORD id, IMFAttributes** attributes) {
+  LogControlEvent(L"CamBridgeMediaSource", L"GetStreamAttributes.begin", S_OK);
   if (id != 0 || attributes == nullptr) return E_INVALIDARG;
   std::lock_guard lock(mutex_);
   if (shutdown_ || !stream_ || stream_->attributes() == nullptr) return MF_E_SHUTDOWN;
-  return stream_->attributes()->QueryInterface(IID_PPV_ARGS(attributes));
+  const HRESULT hr = stream_->attributes()->QueryInterface(IID_PPV_ARGS(attributes));
+  LogControlEvent(L"CamBridgeMediaSource", L"GetStreamAttributes.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::SetD3DManager(IUnknown*) { return S_OK; }
@@ -429,11 +498,14 @@ HRESULT CamBridgeMediaSource::KsEvent(PKSEVENT, ULONG, LPVOID, ULONG, ULONG*) {
 }
 
 HRESULT CamBridgeMediaSource::SetDefaultAllocator(DWORD outputStreamId, IUnknown* allocator) {
+  LogControlEvent(L"CamBridgeMediaSource", L"SetDefaultAllocator.begin", S_OK);
   if (outputStreamId != 0 || allocator == nullptr || stream_ == nullptr) return E_INVALIDARG;
   Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> videoAllocator;
   HRESULT hr = allocator->QueryInterface(IID_PPV_ARGS(&videoAllocator));
   if (FAILED(hr)) return hr;
-  return stream_->SetSampleAllocator(videoAllocator.Get());
+  hr = stream_->SetSampleAllocator(videoAllocator.Get());
+  LogControlEvent(L"CamBridgeMediaSource", L"SetDefaultAllocator.end", hr);
+  return hr;
 }
 
 HRESULT CamBridgeMediaSource::GetAllocatorUsage(DWORD outputStreamId, DWORD* inputStreamId,
@@ -441,6 +513,7 @@ HRESULT CamBridgeMediaSource::GetAllocatorUsage(DWORD outputStreamId, DWORD* inp
   if (outputStreamId != 0 || inputStreamId == nullptr || usage == nullptr) return E_INVALIDARG;
   *inputStreamId = 0;
   *usage = MFSampleAllocatorUsage_UsesProvidedAllocator;
+  LogControlEvent(L"CamBridgeMediaSource", L"GetAllocatorUsage", S_OK);
   return S_OK;
 }
 
@@ -448,28 +521,44 @@ HRESULT CamBridgeMediaSource::GetAllocatorUsage(DWORD outputStreamId, DWORD* inp
   do { if (!attributes_) { HRESULT hr = MFCreateAttributes(&attributes_, 2); if (FAILED(hr)) return hr; } return attributes_->method args; } while (false)
 
 HRESULT CamBridgeMediaSourceActivate::Initialize() {
+  LogControlEvent(L"CamBridgeMediaSourceActivate", L"Initialize.begin", S_OK);
   HRESULT hr = MFCreateAttributes(&attributes_, 2);
   if (FAILED(hr)) return hr;
-  return attributes_->SetUINT32(MF_VIRTUALCAMERA_PROVIDE_ASSOCIATED_CAMERA_SOURCES, 1);
+  hr = attributes_->SetUINT32(MF_VIRTUALCAMERA_PROVIDE_ASSOCIATED_CAMERA_SOURCES, 1);
+  LogControlEvent(L"CamBridgeMediaSourceActivate", L"Initialize.end", hr);
+  return hr;
 }
 HRESULT CamBridgeMediaSourceActivate::ActivateObject(REFIID riid, void** result) {
+  LogQueryInterface(L"CamBridgeMediaSourceActivate.ActivateObject", riid, S_OK);
   if (result == nullptr) return E_POINTER;
   *result = nullptr;
   auto source = Microsoft::WRL::Make<CamBridgeMediaSource>();
   if (!source) return E_OUTOFMEMORY;
   HRESULT hr = source->Initialize(attributes_.Get());
-  if (FAILED(hr)) return hr;
+  if (FAILED(hr)) {
+    LogControlEvent(L"CamBridgeMediaSourceActivate", L"ActivateObject.Initialize", hr);
+    return hr;
+  }
   if (riid == IID_IMFMediaSource) {
     auto* mediaSource = static_cast<IMFMediaSource*>(
         static_cast<IMFMediaSourceEx*>(source.Get()));
     mediaSource->AddRef();
     *result = mediaSource;
+    LogControlEvent(L"CamBridgeMediaSourceActivate", L"ActivateObject.end", S_OK);
     return S_OK;
   }
-  return source->QueryInterface(riid, result);
+  hr = source->QueryInterface(riid, result);
+  LogControlEvent(L"CamBridgeMediaSourceActivate", L"ActivateObject.end", hr);
+  return hr;
 }
-HRESULT CamBridgeMediaSourceActivate::ShutdownObject() { return S_OK; }
-HRESULT CamBridgeMediaSourceActivate::DetachObject() { return S_OK; }
+HRESULT CamBridgeMediaSourceActivate::ShutdownObject() {
+  LogControlEvent(L"CamBridgeMediaSourceActivate", L"ShutdownObject", S_OK);
+  return S_OK;
+}
+HRESULT CamBridgeMediaSourceActivate::DetachObject() {
+  LogControlEvent(L"CamBridgeMediaSourceActivate", L"DetachObject", S_OK);
+  return S_OK;
+}
 HRESULT CamBridgeMediaSourceActivate::GetItem(REFGUID k, PROPVARIANT* v) { CAMBRIDGE_ATTR_FORWARD(GetItem, (k, v)); }
 HRESULT CamBridgeMediaSourceActivate::GetItemType(REFGUID k, MF_ATTRIBUTE_TYPE* v) { CAMBRIDGE_ATTR_FORWARD(GetItemType, (k, v)); }
 HRESULT CamBridgeMediaSourceActivate::CompareItem(REFGUID k, REFPROPVARIANT v, BOOL* r) { CAMBRIDGE_ATTR_FORWARD(CompareItem, (k, v, r)); }
@@ -502,13 +591,16 @@ HRESULT CamBridgeMediaSourceActivate::GetItemByIndex(UINT32 n, GUID* k, PROPVARI
 HRESULT CamBridgeMediaSourceActivate::CopyAllItems(IMFAttributes* d) { CAMBRIDGE_ATTR_FORWARD(CopyAllItems, (d)); }
 
 HRESULT CamBridgeClassFactory::CreateInstance(IUnknown* outer, REFIID riid, void** result) {
+  LogQueryInterface(L"CamBridgeClassFactory.CreateInstance", riid, S_OK);
   if (outer != nullptr || result == nullptr) return outer != nullptr ? CLASS_E_NOAGGREGATION : E_POINTER;
   *result = nullptr;
   auto activate = Microsoft::WRL::Make<CamBridgeMediaSourceActivate>();
   if (!activate) return E_OUTOFMEMORY;
   HRESULT hr = activate->Initialize();
   if (FAILED(hr)) return hr;
-  return activate->QueryInterface(riid, result);
+  hr = activate->QueryInterface(riid, result);
+  LogControlEvent(L"CamBridgeClassFactory", L"CreateInstance.end", hr);
+  return hr;
 }
 HRESULT CamBridgeClassFactory::LockServer(BOOL) { return S_OK; }
 

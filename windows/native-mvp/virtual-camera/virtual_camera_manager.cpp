@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -46,13 +47,21 @@ HRESULT RegisterSourcePath(const std::wstring& path, bool registerSource, bool m
                ? S_OK
                : HRESULT_FROM_WIN32(status);
   }
+  std::vector<wchar_t> absoluteBuffer(32768);
+  const DWORD absoluteLength = GetFullPathNameW(path.c_str(),
+                                                 static_cast<DWORD>(absoluteBuffer.size()),
+                                                 absoluteBuffer.data(), nullptr);
+  if (absoluteLength == 0 || absoluteLength >= absoluteBuffer.size()) {
+    return HRESULT_FROM_WIN32(absoluteLength == 0 ? GetLastError() : ERROR_BUFFER_OVERFLOW);
+  }
+  const std::wstring absolutePath(absoluteBuffer.data(), absoluteLength);
   HKEY handle = nullptr;
   auto status = RegCreateKeyExW(root, key.c_str(), 0, nullptr, 0, KEY_WRITE,
                                 nullptr, &handle, nullptr);
   if (status != ERROR_SUCCESS) return HRESULT_FROM_WIN32(status);
   status = RegSetValueExW(handle, nullptr, 0, REG_SZ,
-                          reinterpret_cast<const BYTE*>(path.c_str()),
-                          static_cast<DWORD>((path.size() + 1) * sizeof(wchar_t)));
+                          reinterpret_cast<const BYTE*>(absolutePath.c_str()),
+                          static_cast<DWORD>((absolutePath.size() + 1) * sizeof(wchar_t)));
   if (status == ERROR_SUCCESS) {
     constexpr wchar_t model[] = L"Both";
     status = RegSetValueExW(handle, L"ThreadingModel", 0, REG_SZ,
@@ -137,6 +146,7 @@ int wmain(int argc, wchar_t** argv) {
     std::wcerr << L"Windows build is below 22000; MFCreateVirtualCamera is unavailable.\n";
     return 3;
   }
+  std::wcout << L"Control-path diagnostics: C:\\ProgramData\\CamBridge\\logs\\media-source-<pid>.log\n";
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   const bool comInitialized = SUCCEEDED(hr);
   if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
