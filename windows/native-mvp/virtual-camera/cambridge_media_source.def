@@ -1,0 +1,6 @@
+LIBRARY cambridge_media_source
+EXPORTS
+  DllCanUnloadNow
+  DllGetClassObject
+  DllRegisterServer
+  DllUnregisterServer
