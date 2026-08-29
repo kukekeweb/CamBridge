@@ -129,6 +129,49 @@ Synthetic/sample probe: 0 samples
 
 ### Latest control-path evidence
 
+### 2026-08-30 capture probe failure diagnosis
+
+手動capture probeおよびcapture childを直接実行して、最新ログ
+`C:\ProgramData\CamBridge\logs\media-source-3284.log`（Frame Server PID 3284）を確認した。
+今回の対象試行は次の順序で終了している。
+
+```text
+Start.begin                         0x00000000
+Start.format                        1920x1080 @ 60/1
+Start.end                           0x00000000
+RequestSample.begin                 0x00000000
+RequestSample.CreateSample          0xC00D36B6
+```
+
+`CreateSample`以降の `CreateSample.ipc`、`SampleCreated`、`SampleDelivered`、timestamp、
+duration、buffer copyは記録されていない。従って、この試行ではPublisherのsequenceや
+共有メモリ読み取りが一次障害ではなく、sample生成開始前に停止している。
+
+capture childの直接出力でも次を確認した。
+
+```text
+MFCreateSourceReaderFromMediaSource: 0x0 (S_OK)
+IMFSourceReader::SetCurrentMediaType(NV12 1920x1080@60): 0x0 (S_OK)
+IMFSourceReader::GetCurrentMediaType: 0x0 (S_OK)
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+IMFSourceReader::ReadSample: 0xC00D36B6 (MF_E_NOT_INITIALIZED)
+stream=4294967292 flags=0x1 timestamp=0 sample=no
+Samples received: 0
+```
+
+`0xC00D36B6` はWindows SDKの `MF_E_NOT_INITIALIZED` である。公式
+`SimpleMediaStream` は `StartInternal` 内で `MFCreateVideoSampleAllocatorEx`（必要時）と
+`InitializeSampleAllocator(10, mediaType)` を完了してから `RequestSample` で
+`AllocateSample` を呼ぶ。CamBridgeにはこのStart時初期化がなく、Frame Serverで
+`MFCreateSample` / allocator経路が未初期化のままsample作成へ進んでいた。
+
+この仮説を分離するため、Media Sourceテストに「内部allocator未提供」と
+「Frame Server相当のprovided allocator」の2経路を追加した。修正前は両方が
+`MF_E_NOT_INITIALIZED`で失敗し、Start時allocator初期化後は両方が成功した。
+修正は `cc2bad8`（`fix: initialize virtual camera sample allocator`）に記録した。
+この修正はまだProgram Filesへ再インストールしていないため、実機Frame Serverの
+再probe成功は未確認である。
+
 2026-08-30のcapture probeで生成されたMedia Source logには、次の順序が記録された。
 
 ```text
