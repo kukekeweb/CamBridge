@@ -120,9 +120,20 @@ HRESULT CamBridgeMediaStream::Shutdown() {
   descriptor_.Reset();
   attributes_.Reset();
   mediaType_.Reset();
+  sampleAllocator_.Reset();
   if (events_) events_->Shutdown();
   events_.Reset();
   reader_.Close();
+  return S_OK;
+}
+
+HRESULT CamBridgeMediaStream::SetSampleAllocator(IMFVideoSampleAllocator* allocator) {
+  if (allocator == nullptr) return E_POINTER;
+  std::lock_guard lock(mutex_);
+  HRESULT hr = CheckState();
+  if (FAILED(hr)) return hr;
+  if (state_ == MF_STREAM_STATE_RUNNING) return MF_E_INVALIDREQUEST;
+  sampleAllocator_ = allocator;
   return S_OK;
 }
 
@@ -182,8 +193,22 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   if (sample == nullptr) return E_POINTER;
   *sample = nullptr;
   const auto bytes = static_cast<std::size_t>(stride_) * height_ * 3 / 2;
+  Microsoft::WRL::ComPtr<IMFSample> result;
+  HRESULT hr = S_OK;
+  if (sampleAllocator_) {
+    hr = sampleAllocator_->AllocateSample(&result);
+    if (FAILED(hr)) return hr;
+  } else {
+    hr = MFCreateSample(&result);
+    if (FAILED(hr)) return hr;
+    Microsoft::WRL::ComPtr<IMFMediaBuffer> newBuffer;
+    hr = MFCreateMemoryBuffer(static_cast<DWORD>(bytes), &newBuffer);
+    if (FAILED(hr)) return hr;
+    hr = result->AddBuffer(newBuffer.Get());
+    if (FAILED(hr)) return hr;
+  }
   Microsoft::WRL::ComPtr<IMFMediaBuffer> buffer;
-  HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(bytes), &buffer);
+  hr = result->GetBufferByIndex(0, &buffer);
   if (FAILED(hr)) return hr;
   BYTE* data = nullptr;
   DWORD maxLength = 0, currentLength = 0;
@@ -198,9 +223,6 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   }
   buffer->Unlock();
   if (FAILED(hr = buffer->SetCurrentLength(static_cast<DWORD>(bytes)))) return hr;
-  Microsoft::WRL::ComPtr<IMFSample> result;
-  if (FAILED(hr = MFCreateSample(&result))) return hr;
-  if (FAILED(hr = result->AddBuffer(buffer.Get()))) return hr;
   const auto fpsDuration = mediaType_ ? [&] {
     UINT32 fps = 60, den = 1;
     MFGetAttributeRatio(mediaType_.Get(), MF_MT_FRAME_RATE, &fps, &den);
@@ -243,18 +265,34 @@ HRESULT CamBridgeMediaStream::GetStreamState(MF_STREAM_STATE* state) {
   return S_OK;
 }
 
-HRESULT CamBridgeMediaSource::Initialize(IMFAttributes*) {
+HRESULT CamBridgeMediaSource::Initialize(IMFAttributes* activationAttributes) {
   std::lock_guard lock(mutex_);
   if (initialized_) return MF_E_ALREADY_INITIALIZED;
   HRESULT hr = MFCreateEventQueue(&events_);
   if (FAILED(hr)) return hr;
   hr = MFCreateAttributes(&attributes_, 8);
   if (FAILED(hr)) return hr;
+  if (activationAttributes != nullptr) {
+    if (FAILED(hr = activationAttributes->CopyAllItems(attributes_.Get()))) return hr;
+  }
   attributes_->SetGUID(MF_DEVICESTREAM_STREAM_CATEGORY, PINNAME_VIDEO_CAPTURE);
   attributes_->SetUINT32(MF_DEVICESTREAM_STREAM_ID, 0);
   attributes_->SetUINT32(MF_DEVICESTREAM_FRAMESERVER_SHARED, 1);
   attributes_->SetUINT32(MF_DEVICESTREAM_ATTRIBUTE_FRAMESOURCE_TYPES,
                           MFFrameSourceTypes::MFFrameSourceTypes_Color);
+
+  Microsoft::WRL::ComPtr<IMFSensorProfileCollection> profileCollection;
+  Microsoft::WRL::ComPtr<IMFSensorProfile> profile;
+  if (FAILED(hr = MFCreateSensorProfileCollection(&profileCollection))) return hr;
+  if (FAILED(hr = MFCreateSensorProfile(KSCAMERAPROFILE_Legacy, 0, nullptr, &profile))) return hr;
+  if (FAILED(hr = profile->AddProfileFilter(0, L"((RES==;FRT<=30,1;SUT==))"))) return hr;
+  if (FAILED(hr = profileCollection->AddProfile(profile.Get()))) return hr;
+  profile.Reset();
+  if (FAILED(hr = MFCreateSensorProfile(KSCAMERAPROFILE_HighFrameRate, 0, nullptr, &profile))) return hr;
+  if (FAILED(hr = profile->AddProfileFilter(0, L"((RES==;FRT>=60,1;SUT==))"))) return hr;
+  if (FAILED(hr = profileCollection->AddProfile(profile.Get()))) return hr;
+  if (FAILED(hr = attributes_->SetUnknown(MF_DEVICEMFT_SENSORPROFILE_COLLECTION,
+                                           profileCollection.Get()))) return hr;
   stream_ = Microsoft::WRL::Make<CamBridgeMediaStream>();
   if (!stream_) return E_OUTOFMEMORY;
   if (FAILED(hr = stream_->Initialize(this))) return hr;
@@ -390,13 +428,19 @@ HRESULT CamBridgeMediaSource::KsEvent(PKSEVENT, ULONG, LPVOID, ULONG, ULONG*) {
   return HRESULT_FROM_WIN32(ERROR_SET_NOT_FOUND);
 }
 
-HRESULT CamBridgeMediaSource::SetDefaultAllocator(DWORD, IUnknown*) { return E_NOTIMPL; }
+HRESULT CamBridgeMediaSource::SetDefaultAllocator(DWORD outputStreamId, IUnknown* allocator) {
+  if (outputStreamId != 0 || allocator == nullptr || stream_ == nullptr) return E_INVALIDARG;
+  Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> videoAllocator;
+  HRESULT hr = allocator->QueryInterface(IID_PPV_ARGS(&videoAllocator));
+  if (FAILED(hr)) return hr;
+  return stream_->SetSampleAllocator(videoAllocator.Get());
+}
 
 HRESULT CamBridgeMediaSource::GetAllocatorUsage(DWORD outputStreamId, DWORD* inputStreamId,
                                                 MFSampleAllocatorUsage* usage) {
   if (outputStreamId != 0 || inputStreamId == nullptr || usage == nullptr) return E_INVALIDARG;
   *inputStreamId = 0;
-  *usage = MFSampleAllocatorUsage_UsesCustomAllocator;
+  *usage = MFSampleAllocatorUsage_UsesProvidedAllocator;
   return S_OK;
 }
 

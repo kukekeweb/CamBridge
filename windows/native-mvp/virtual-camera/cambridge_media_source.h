@@ -38,6 +38,7 @@ class CamBridgeMediaStream final
   HRESULT Start(IMFMediaType* mediaType);
   HRESULT Stop(bool sendEvent);
   HRESULT Shutdown();
+  HRESULT SetSampleAllocator(IMFVideoSampleAllocator* allocator);
 
   // IMFMediaEventGenerator
   IFACEMETHOD(BeginGetEvent)(IMFAsyncCallback*, IUnknown*) override;
@@ -65,12 +66,14 @@ class CamBridgeMediaStream final
   Microsoft::WRL::ComPtr<IMFStreamDescriptor> descriptor_;
   Microsoft::WRL::ComPtr<IMFAttributes> attributes_;
   Microsoft::WRL::ComPtr<IMFMediaType> mediaType_;
+  Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> sampleAllocator_;
   SharedFrameReader reader_;
   std::mutex mutex_;
   MF_STREAM_STATE state_ = MF_STREAM_STATE_STOPPED;
   bool shutdown_ = false;
   std::int64_t nextTimestamp100ns_ = 0;
   std::uint64_t lastSequence_ = 0;
+  MFSampleAllocatorUsage allocatorUsage_ = MFSampleAllocatorUsage_UsesProvidedAllocator;
   std::uint32_t width_ = 1920;
   std::uint32_t height_ = 1080;
   std::uint32_t stride_ = 1920;

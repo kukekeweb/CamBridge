@@ -72,6 +72,41 @@ int wmain(int argc, wchar_t** argv) {
   }
   DWORD typeCount = 0;
   typeHandler->GetMediaTypeCount(&typeCount);
+  ComPtr<IMFSampleAllocatorControl> allocatorControl;
+  if (FAILED(hr = source.As(&allocatorControl))) {
+    std::wcerr << L"Media Source allocator control missing: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    source->Shutdown();
+    source.Reset();
+    presentation.Reset();
+    streamDescriptor.Reset();
+    typeHandler.Reset();
+    activate.Reset();
+    factory.Reset();
+    FreeLibrary(dll);
+    MFShutdown();
+    if (comInitialized) CoUninitialize();
+    return 1;
+  }
+  DWORD inputStreamId = 0;
+  MFSampleAllocatorUsage allocatorUsage = MFSampleAllocatorUsage_UsesCustomAllocator;
+  if (FAILED(hr = allocatorControl->GetAllocatorUsage(0, &inputStreamId, &allocatorUsage)) ||
+      inputStreamId != 0 || allocatorUsage != MFSampleAllocatorUsage_UsesProvidedAllocator) {
+    std::wcerr << L"Media Source allocator contract mismatch: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << std::dec << L"\n";
+    source->Shutdown();
+    source.Reset();
+    allocatorControl.Reset();
+    presentation.Reset();
+    streamDescriptor.Reset();
+    typeHandler.Reset();
+    activate.Reset();
+    factory.Reset();
+    FreeLibrary(dll);
+    MFShutdown();
+    if (comInitialized) CoUninitialize();
+    return 1;
+  }
   if (FAILED(hr = source->Start(presentation.Get(), nullptr, nullptr))) {
     std::wcerr << L"Media Source start failed: 0x" << std::hex
                << static_cast<unsigned long>(hr) << L"\n";
@@ -92,6 +127,7 @@ int wmain(int argc, wchar_t** argv) {
   source->Stop();
   source->Shutdown();
   source.Reset();
+  allocatorControl.Reset();
   presentation.Reset();
   streamDescriptor.Reset();
   typeHandler.Reset();
