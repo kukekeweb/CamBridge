@@ -54,6 +54,9 @@ If the existing Media Source DLL is still loaded by Frame Server, Windows may re
 an in-place replacement with a sharing violation. The installer then copies the new
 DLL side-by-side under a versioned filename and records the active path in
 `cambridge_media_source.active.txt`; the manager and inspection step use that path.
+Before copying, it also stops only an existing CamBridge Synthetic Publisher whose
+executable path is inside the CamBridge install root, because that test process can
+otherwise lock its own Program Files executable.
 The installer stops before registration and probing if artifact copy fails, so an old
 DLL cannot be reported as a successful new installation.
 

@@ -156,6 +156,8 @@ Copy-Item : 別のプロセスで使用されているため、プロセスは�
 
 旧launcherはこの失敗後もmanagerを起動していたため、旧DLLのままregistration/probeが実行される余地があった。installerを修正し、通常名のDLLが使用中の場合はProgram Files内へversioned DLLをside-by-side配置し、`cambridge_media_source.active.txt`へ実際の登録パスを保存するようにした。artifact copyが失敗した場合は、machine registration・publisher・capture probeを実行せず終了する。
 
+旧launcherの失敗後に残ったProgram Files版Synthetic Publisherが、次回実行時に自身のexeをロックしていた事例も確認した。installerはコピー前に、実行パスがCamBridge install root配下であるPublisherだけを停止する。パスを取得できない別プロセスは停止せず、誤って他のPublisherを終了しない。
+
 ## CurrentUser Virtual Camera live gate
 
 標準ユーザーで次を実行した。

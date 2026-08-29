@@ -26,6 +26,20 @@ Write-Output "Source artifact root: $SourceRoot"
 Write-Output "Install root: $InstallRoot"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 
+$installRootFull = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\') + '\'
+$publisherProcesses = @(Get-CimInstance Win32_Process -Filter "Name='cambridge_synthetic_publisher.exe'" -ErrorAction SilentlyContinue)
+foreach ($process in $publisherProcesses) {
+    if ([string]::IsNullOrWhiteSpace($process.ExecutablePath)) {
+        Write-Output ("Synthetic Publisher PID {0} path is unavailable; it was not stopped." -f $process.ProcessId)
+        continue
+    }
+    $processPath = [System.IO.Path]::GetFullPath($process.ExecutablePath)
+    if ($processPath.StartsWith($installRootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+        Write-Output ("Stopped existing CamBridge Synthetic Publisher PID {0}: {1}" -f $process.ProcessId, $processPath)
+    }
+}
+
 foreach ($name in $requiredFiles) {
     $source = Join-Path $SourceRoot $name
     $destination = Join-Path $InstallRoot $name
