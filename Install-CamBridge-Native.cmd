@@ -9,6 +9,7 @@ set "PROBE=%INSTALL_ROOT%\cambridge_capture_probe.exe"
 set "SYNTHETIC=%INSTALL_ROOT%\cambridge_synthetic_publisher.exe"
 set "IPC_PROBE=%INSTALL_ROOT%\cambridge_frame_ipc_probe.exe"
 set "DLL=%INSTALL_ROOT%\cambridge_media_source.dll"
+set "DLL_MANIFEST=%INSTALL_ROOT%\cambridge_media_source.active.txt"
 set "LOGDIR=%ROOT%build\native-mvp\diagnostics\install"
 set "CAMBRIDGE_NATIVE_MVP_LOG_DIR=%LOGDIR%"
 
@@ -34,12 +35,29 @@ echo This command requires an elevated Administrator PowerShell/CMD.
 echo.
 echo Source artifacts: %BIN%
 echo Install root:     %INSTALL_ROOT%
-echo Registered DLL:   %DLL%
+echo Registered DLL:   determined during install
 echo Frame Server logs: C:\ProgramData\CamBridge\logs\media-source-*.log
 echo.
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\Install-CamBridge-Native.ps1" -SourceRoot "%BIN%" -InstallRoot "%INSTALL_ROOT%"
 set "COPY_EXIT=%ERRORLEVEL%"
+
+if not "%COPY_EXIT%"=="0" (
+  echo.
+  echo Artifact copy failed; machine registration and capture probe were skipped.
+  echo A loaded Media Source DLL may require a new Windows camera session before replacement.
+  exit /b %COPY_EXIT%
+)
+if not exist "%DLL_MANIFEST%" (
+  echo Active Media Source manifest is missing; machine registration and capture probe were skipped.
+  exit /b 1
+)
+set /p DLL=<"%DLL_MANIFEST%"
+if "%DLL%"=="" (
+  echo Active Media Source manifest is empty; machine registration and capture probe were skipped.
+  exit /b 1
+)
+echo Active registered DLL: %DLL%
 
 echo.
 echo Machine COM registration and Virtual Camera probe:
@@ -57,7 +75,7 @@ reg query "HKLM\Software\Classes\CLSID\{F6DC0D8C-8D0E-4DD2-9F5C-A9B83A2A3A61}\In
 
 echo.
 echo Installed file/ACL/MOTW verification:
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\Inspect-CamBridge-NativeInstall.ps1" -InstallRoot "%INSTALL_ROOT%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\Inspect-CamBridge-NativeInstall.ps1" -InstallRoot "%INSTALL_ROOT%" -MediaSourcePath "%DLL%"
 set "AUDIT_EXIT=%ERRORLEVEL%"
 
 echo.

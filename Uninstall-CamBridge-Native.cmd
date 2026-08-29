@@ -5,6 +5,9 @@ set "ROOT=%~dp0"
 set "INSTALL_ROOT=%ProgramFiles%\CamBridge\Native"
 set "MANAGER=%INSTALL_ROOT%\cambridge_virtual_camera_manager.exe"
 set "DLL=%INSTALL_ROOT%\cambridge_media_source.dll"
+set "DLL_MANIFEST=%INSTALL_ROOT%\cambridge_media_source.active.txt"
+
+if exist "%DLL_MANIFEST%" set /p DLL=<"%DLL_MANIFEST%"
 
 fltmc >nul 2>&1
 if errorlevel 1 (

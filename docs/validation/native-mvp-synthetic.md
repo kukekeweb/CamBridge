@@ -146,6 +146,16 @@ SampleDelivered sampleIndex=1 sequence=... bufferBytes=3110400
 
 なお、その実行時のHKLM登録先は `C:\Program Files\CamBridge\Native\cambridge_media_source.dll`（ビルド直後の `build\\native-mvp\\Release\\cambridge_media_source.dll` とは別artifact）だった。したがって、更新版のstream-announcement修正をProgram Files/HKLMへ反映した後に、同じprobeを再実行する必要がある。現時点ではSynthetic Virtual Camera captureをPASSとは判定しない。
 
+### In-use DLL installation guard
+
+旧DLLがFrame Serverにロードされた状態で同じファイルを`Copy-Item -Force`すると、次の失敗が発生した。
+
+```text
+Copy-Item : 別のプロセスで使用されているため、プロセスはファイルにアクセスできません。
+```
+
+旧launcherはこの失敗後もmanagerを起動していたため、旧DLLのままregistration/probeが実行される余地があった。installerを修正し、通常名のDLLが使用中の場合はProgram Files内へversioned DLLをside-by-side配置し、`cambridge_media_source.active.txt`へ実際の登録パスを保存するようにした。artifact copyが失敗した場合は、machine registration・publisher・capture probeを実行せず終了する。
+
 ## CurrentUser Virtual Camera live gate
 
 標準ユーザーで次を実行した。

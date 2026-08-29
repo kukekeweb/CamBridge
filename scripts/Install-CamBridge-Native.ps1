@@ -16,7 +16,6 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 $requiredFiles = @(
-    'cambridge_media_source.dll',
     'cambridge_virtual_camera_manager.exe',
     'cambridge_capture_probe.exe',
     'cambridge_synthetic_publisher.exe',
@@ -37,8 +36,34 @@ foreach ($name in $requiredFiles) {
     Write-Output "Copied: $destination"
 }
 
+$sourceDll = Join-Path $SourceRoot 'cambridge_media_source.dll'
+if (-not (Test-Path -LiteralPath $sourceDll -PathType Leaf)) {
+    throw "Required build artifact is missing: $sourceDll"
+}
+
+$stableDll = Join-Path $InstallRoot 'cambridge_media_source.dll'
+$dll = $stableDll
+try {
+    Copy-Item -LiteralPath $sourceDll -Destination $stableDll -Force
+    Write-Output "Copied: $stableDll"
+} catch {
+    if ($_.Exception -isnot [System.IO.IOException] -and
+        $_.Exception -isnot [System.UnauthorizedAccessException]) {
+        throw
+    }
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+    $versionedName = "cambridge_media_source-$stamp-$PID.dll"
+    $dll = Join-Path $InstallRoot $versionedName
+    Copy-Item -LiteralPath $sourceDll -Destination $dll -Force
+    Write-Output "Stable Media Source DLL is in use; installed side-by-side: $dll"
+}
+
+$activeManifest = Join-Path $InstallRoot 'cambridge_media_source.active.txt'
+[System.IO.File]::WriteAllText($activeManifest, $dll, [System.Text.UTF8Encoding]::new($false))
+Write-Output "Active Media Source DLL: $dll"
+Write-Output "Active Media Source manifest: $activeManifest"
+
 Write-Output 'Program Files ACL (inherited/default; no custom ACL was applied):'
-$dll = Join-Path $InstallRoot 'cambridge_media_source.dll'
 $acl = Get-Acl -LiteralPath $dll
 $acl | Format-List Owner,AccessToString
 Write-Output 'Explicit service-account ACEs:'
@@ -69,5 +94,8 @@ foreach ($name in $requiredFiles) {
     $state = if ($null -eq $sourceZone) { 'none' } else { 'present' }
     Write-Output ("Source {0} Zone.Identifier: {1}" -f $name, $state)
 }
+$sourceZone = Get-Item -LiteralPath $sourceDll -Stream Zone.Identifier -ErrorAction SilentlyContinue
+$sourceState = if ($null -eq $sourceZone) { 'none' } else { 'present' }
+Write-Output ("Source cambridge_media_source.dll Zone.Identifier: {0}" -f $sourceState)
 
 exit 0

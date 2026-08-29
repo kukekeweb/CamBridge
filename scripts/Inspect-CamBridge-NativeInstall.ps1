@@ -1,12 +1,21 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = (Join-Path $env:ProgramFiles 'CamBridge\Native')
+    [string]$InstallRoot = (Join-Path $env:ProgramFiles 'CamBridge\Native'),
+    [string]$MediaSourcePath
 )
 
 $ErrorActionPreference = 'Continue'
-$dll = Join-Path $InstallRoot 'cambridge_media_source.dll'
+$manifest = Join-Path $InstallRoot 'cambridge_media_source.active.txt'
+if ([string]::IsNullOrWhiteSpace($MediaSourcePath) -and (Test-Path -LiteralPath $manifest -PathType Leaf)) {
+    $MediaSourcePath = (Get-Content -LiteralPath $manifest -Raw).Trim()
+}
+if ([string]::IsNullOrWhiteSpace($MediaSourcePath)) {
+    $MediaSourcePath = Join-Path $InstallRoot 'cambridge_media_source.dll'
+}
+$dll = $MediaSourcePath
 Write-Output "Install root: $InstallRoot"
-Write-Output "DLL: $dll"
+Write-Output "Active Media Source DLL: $dll"
+Write-Output "Active manifest: $manifest"
 Write-Output "File exists: $(Test-Path -LiteralPath $dll -PathType Leaf)"
 if (Test-Path -LiteralPath $dll -PathType Leaf) {
     $item = Get-Item -LiteralPath $dll

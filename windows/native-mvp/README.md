@@ -50,6 +50,13 @@ operation is `Uninstall-CamBridge-Native.cmd` (also elevated); it removes the
 CurrentUser virtual camera, HKLM registration, and only the exact CamBridge install
 directory.
 
+If the existing Media Source DLL is still loaded by Frame Server, Windows may reject
+an in-place replacement with a sharing violation. The installer then copies the new
+DLL side-by-side under a versioned filename and records the active path in
+`cambridge_media_source.active.txt`; the manager and inspection step use that path.
+The installer stops before registration and probing if artifact copy fails, so an old
+DLL cannot be reported as a successful new installation.
+
 The `--machine` manager path remains available for focused diagnostics, but the
 build-directory DLL is not the production registration target. The installed Media
 Source is machine-wide while the virtual camera continues to use
