@@ -1,124 +1,140 @@
-# CamBridge Web Stage 2 Implementation Plan Draft
+# CamBridge Native MVP Implementation Plan
 
-> **For agentic workers:** This is a draft only. Do not execute any task until Web Stage 1's 600-second real-device acceptance is PASS and the Stage 2 design is approved.
-
-**Goal:** Transfer the proven iPhone Safari 1920×1080@60 camera Track over a same-LAN WebRTC connection to a Windows preview.
-
-**Architecture:** Keep Safari capture, WebRTC encode/transport, Windows receive/decode, and D3D11 preview as separate components. Use the existing Windows HTTPS origin for WSS signaling and use host-candidate direct media without TURN or external STUN.
-
-**Tech Stack:** iOS Safari Web APIs, WebRTC runtime APIs, Windows C++20, libwebrtc, D3D11, existing Node.js local HTTPS server for signaling.
+**Goal:** OBSを使わず、Safari WebRTC映像をWindowsのCamBridge Virtual Cameraとして公開する。
 
 **Spec:** `docs/superpowers/specs/2026-08-29-cambridge-stage2-design-draft.md`
 
-## Global Constraints
+## Guardrails
 
-- Stage 2 starts only after the iPhone 17 / iOS 27 Safari 600-second 1080p60 Stage 1 acceptance is PASS.
-- Stage 2 includes Preview only; Media Foundation Virtual Camera is Stage 3.
-- Video media stays on the private LAN and never uses cloud signaling, TURN, external STUN, or relay upload.
-- No silent resolution/FPS/codec fallback; actual Track settings, SDP codec, decoder path, and stats are displayed.
-- No automatic Windows Firewall changes; document and surface the required Private network permission.
-- Runtime-detect Safari stats and latency APIs; unsupported properties remain explicitly unavailable.
+- Web Stage 1と`ios/` legacy implementationは変更しない。
+- WebRTC、decoder、Virtual Cameraを一つの未検証経路として実装しない。
+- Synthetic Virtual Cameraが合格するまでSafari media transportを統合しない。
+- TURN、外部STUN、cloud relay、OBS、kernel driver、DirectShow filterを追加しない。
+- UAC、COM registration、Virtual Camera registrationはdry-runと実測結果を分離する。
 
----
+## Phase 0: environment and dependency decision
 
-### Task 1: Freeze the Stage 2 test contract
+**Files:** `docs/...stage2-design-draft.md`, `windows/native-mvp/README.md`, CI workflow
 
-**Files:**
-- Create: `docs/validation/web-stage2-test-matrix.md`
-- Test: `web/client/tests/webrtc-contract.test.js`
+- Record actual Windows build number and SDK/toolchain.
+- Pin libdatachannel revision and license/third-party notices.
+- Add a CMake configure/build smoke target.
+- Keep libwebrtc as a documented contingency only.
 
-**Interfaces:**
-- Produces the exact signaling message schema, metrics names, candidate classification, codec evidence fields, and acceptance checklist used by later tasks.
-
-- [ ] Define JSON message types `hello`, `offer`, `answer`, `ice-candidate`, `state`, and `error`, including session id and correlation fields.
-- [ ] Define the direct-LAN evidence fields: selected candidate pair, candidate types, private IPv4 status, and relay/stun absence.
-- [ ] Define the codec evidence fields: SDP mime type, codec stats id, frames encoded/decoded, and decoder path.
-- [ ] Add contract tests that reject unknown message types and missing session/correlation fields.
-- [ ] Run `npm test --prefix web/client -- tests/webrtc-contract.test.js` and confirm it fails before the future contract module exists.
-
-### Task 2: Add same-origin WSS signaling to the Windows server
+## Phase 1: synthetic Virtual Camera first
 
 **Files:**
-- Modify: `windows/stage1-server/server.mjs`
-- Create: `windows/stage1-server/signaling/session-store.mjs`
-- Test: `windows/stage1-server/tests/signaling-session.test.mjs`
 
-**Interfaces:**
-- Consumes WebSocket messages from Safari and the future native receiver.
-- Produces validated Offer/Answer/ICE messages scoped to one short-lived session.
+- `windows/native-mvp/virtual-camera/`
+- `windows/native-mvp/frame-ipc/`
+- `windows/native-mvp/tests/`
+- `scripts/`
 
-- [ ] Add a WSS endpoint on the same HTTPS listener and reject non-WebSocket paths, invalid origin, invalid schema, and oversized messages.
-- [ ] Store only active in-memory sessions; expire disconnected sessions and never persist SDP, ICE, or camera media.
-- [ ] Add one-to-one pairing and explicit state transitions for `waiting`, `offer-received`, `answer-received`, `connected`, `disconnected`, `failed`, and `closed`.
-- [ ] Test two clients, a third-client rejection, malformed JSON, oversized payload, disconnect cleanup, and reconnect with a new session.
-- [ ] Run `node --check windows/stage1-server/server.mjs` and the signaling tests.
+Tasks:
 
-### Task 3: Implement the Safari WebRTC sender
+1. Define `Nv12Frame` and a bounded latest-frame provider.
+2. Implement shared-memory header/slots with atomic sequence and event notification.
+3. Implement a deterministic 1920x1080@60 NV12 pattern generator.
+4. Implement Custom Media Source with black output when no frame is available.
+5. Implement `MFCreateVirtualCamera` registration using CurrentUser first.
+6. Add install/uninstall command separation and report UAC/registration status.
+7. Implement a Media Foundation Source Reader capture client.
+8. Enumerate by device identity/SourceId, not Friendly Name equality.
 
-**Files:**
-- Create: `web/client/src/webrtc-sender.js`
-- Modify: `web/client/src/main.js`
-- Modify: `web/client/index.html`
-- Test: `web/client/tests/webrtc-sender.test.js`
+Tests:
 
-**Interfaces:**
-- Consumes the existing exact 1920×1080@60 Track and WSS signaling client.
-- Produces sender stats, selected codec evidence, ICE state, and connection lifecycle events.
+- shared-memory sequence/overwrite and stale-reader tests
+- NV12 stride/timestamp/frame-rate tests
+- Media Source state/event/sample tests
+- Virtual Camera registration dry-run and live test
+- capture client enumeration/open/sample tests
+- synthetic 10-minute 60fps test
 
-- [ ] Add a Stage 2-only sender that reuses the active exact Track and does not create one unless Stage 1 settings match.
-- [ ] Detect `setCodecPreferences`, `getStats`, sender stats, receiver stats, jitter-buffer properties, and target-latency properties at runtime.
-- [ ] Prefer runtime-advertised H.264 when available, then preserve the actual negotiated codec as evidence rather than labeling the requested codec as selected.
-- [ ] Add tests for H.264 present/absent, `setCodecPreferences` unavailable, selected codec mapping, stats unavailable, and ICE failure.
-- [ ] Keep this file out of Stage 1 startup so the Stage 1 validator can still prove no Stage 2 transport is created.
+Commit: `feat: add synthetic CamBridge virtual camera`
 
-### Task 4: Build the Windows native WebRTC receiver
+## Phase 2: Frame Server process-boundary validation
 
-**Files:**
-- Create: `windows/stage2-receiver/CMakeLists.txt`
-- Create: `windows/stage2-receiver/src/ReceiverSession.cpp`
-- Create: `windows/stage2-receiver/src/ReceiverSession.h`
-- Create: `windows/stage2-receiver/src/ReceiverStats.cpp`
-- Test: `windows/stage2-receiver/tests/ReceiverSessionTests.cpp`
+- Run the Custom Media Source under the actual Frame Server activation path.
+- Verify the source can open the shared memory created by Native Publisher.
+- Verify cross-process synchronization and cleanup after producer exit.
+- Test producer crash, consumer restart, and stale shared-memory version.
 
-**Interfaces:**
-- Consumes WSS signaling and WebRTC media.
-- Produces decoded frames and receiver statistics to the Preview boundary.
+Commit: `test: verify virtual camera frame server ipc`
 
-- [ ] Pin and document the libwebrtc build input without downloading binaries at runtime.
-- [ ] Configure a one-to-one PeerConnection, host-candidate-only validation, and explicit ICE state/reconnect transitions.
-- [ ] Surface actual codec, frames decoded, frames dropped, packet loss, RTT, jitter, jitter buffer delay, and decoder path.
-- [ ] Make the receiver reject a selected relay candidate when the Stage 2 direct-LAN gate is enabled.
-- [ ] Unit-test lifecycle, malformed signaling, candidate classification, stale-session rejection, and reconnect cleanup.
-
-### Task 5: Add D3D11 Preview without Virtual Camera
+## Phase 3: signaling and receiver skeleton
 
 **Files:**
-- Create: `windows/stage2-receiver/src/D3D11Preview.cpp`
-- Create: `windows/stage2-receiver/src/D3D11Preview.h`
-- Test: `windows/stage2-receiver/tests/D3D11PreviewTests.cpp`
 
-**Interfaces:**
-- Consumes the decoded frame adapter from `ReceiverSession`.
-- Produces a visible preview and render statistics only; it does not register a Windows camera device.
+- `windows/stage1-server/server.mjs`
+- `windows/stage1-server/signaling/`
+- `windows/native-mvp/receiver/`
+- `windows/native-mvp/tests/`
 
-- [ ] Prefer a zero-copy or one-copy D3D11-compatible frame path and record when a CPU color conversion is required.
-- [ ] Use a bounded latest-frame buffer with queue depth metrics; discard stale frames under pressure.
-- [ ] Report render FPS, queue depth, frame size, dropped render frames, and device removal errors.
-- [ ] Test frame arrival, stale-frame replacement, queue bounds, resize, and D3D11 device loss handling.
+Tasks:
 
-### Task 6: End-to-end acceptance and latency evidence
+- Add same-origin WSS with schema and size validation.
+- Add one-to-one session lifecycle and reconnect cleanup.
+- Build libdatachannel with no configured ICE server.
+- Add recvonly video track and H.264 payload negotiation.
+- Record candidate pair and reject relay evidence in direct-LAN mode.
 
-**Files:**
-- Create: `docs/validation/web-stage2-acceptance.md`
-- Modify: `.github/workflows/web-stage1.yml` only for future static/unit checks; no real iPhone or LAN test is claimed by CI.
+Tests:
 
-**Interfaces:**
-- Consumes Safari and Windows metrics from Tasks 3–5.
-- Produces reproducible LAN-direct, 10-minute, and visual-latency evidence.
+- signaling schema, pairing, malformed message, disconnect, reconnect
+- SDP H.264 payload mapping and recvonly direction
+- candidate classification and private IPv4 validation
+- receiver state lifecycle without media
 
-- [ ] Verify Safari exact Track settings before creating the PeerConnection.
-- [ ] Verify the selected ICE pair is private-LAN host-to-host with no TURN/STUN/relay.
-- [ ] Verify negotiated H.264 and the actual sender/receiver stats codec mapping.
-- [ ] Run 10 minutes while recording capture/outbound/inbound/decode/render FPS, dropped frames, packet loss, RTT, jitter, queue depth, reconnects, decoder errors, CPU/GPU, and memory.
-- [ ] Perform the 240fps visual-latency test with a common LED/clock event and report median/min/max/p95 separately from RTT.
-- [ ] Do not mark Stage 2 PASS if Preview is stable only because frames are buffered, codec differs without evidence, or a cloud relay is involved.
+Commit: `feat: add native receiver and local signaling`
+
+## Phase 4: Safari-H.264 interoperability Probe
+
+- Add Stage 2-only sender code that reuses the exact active Stage 1 track.
+- Prefer runtime-advertised H.264 using `setCodecPreferences` when available.
+- Exchange Offer/Answer/ICE over same-origin WSS.
+- Verify ICE/DTLS/SRTP connected, LAN-direct pair, H.264 selected.
+- Verify `onFrame` access units, RTP timestamps, RTCP, and reconnect.
+
+If the Probe has a major libdatachannel/Safari incompatibility, stop media integration and switch the receiver dependency to the pinned libwebrtc plan.
+
+Commit: `test: prove safari h264 native interoperability`
+
+## Phase 5: H.264 decode and publish
+
+- Normalize H.264 access-unit boundaries without re-encoding.
+- Enumerate Media Foundation H.264 hardware MFTs first.
+- Decode to NV12, preserving timestamps and sequence.
+- Publish decoded frames through the existing IPC only.
+- Log selected transform and explicit software fallback.
+
+Tests:
+
+- H.264 depacketizer Annex-B/length-prefix fixtures
+- SPS/PPS and keyframe handling
+- decoder timestamp/order/error tests
+- hardware/software path evidence tests
+- decoded NV12 IPC test
+
+Commit: `feat: decode h264 into published nv12 frames`
+
+## Phase 6: Native MVP integration
+
+- Connect Safari receiver to decoder and publisher.
+- Keep Virtual Camera Media Source independent of WebRTC.
+- Start HTTPS/WSS, receiver, and Virtual Camera from one command.
+- Keep no-signal camera enumerated with black frames.
+- Add connection, codec, decoder, IPC, and camera status output.
+
+Commit: `feat: integrate safari receiver with cambridge camera`
+
+## Phase 7: acceptance and release evidence
+
+- Capture 10 minutes in Windows capture client.
+- Capture 10 minutes in Discord without OBS.
+- Verify no cloud/TURN/external STUN path.
+- Record registration/UAC/COM load method, codec, decoder path, FPS, drops, reconnects, memory/CPU/GPU.
+- Add D3D11 preview only after Native MVP acceptance.
+
+## CI boundary
+
+GitHub Actions may build and unit-test C++ components and run synthetic Media Foundation tests where the runner permits. CI must not claim live Discord, Frame Server registration, camera privacy, or Safari-LAN acceptance. Those remain explicit Windows-host and iPhone acceptance gates.
