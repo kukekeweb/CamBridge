@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "ROOT=%~dp0"
 set "BIN=%ROOT%build\native-mvp\Release"
@@ -79,23 +79,39 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\Inspect-C
 set "AUDIT_EXIT=%ERRORLEVEL%"
 
 echo.
-echo Synthetic publisher and capture probe (probe runs even after earlier failures):
+echo Synthetic publisher and capture probe:
 set "SYNTHETIC_PID="
+set "SYNTHETIC_START_EXIT=2"
+set "IPC_READY_EXIT=2"
 if exist "%SYNTHETIC%" (
-  for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -Command "$p=Start-Process -FilePath '%SYNTHETIC%' -WorkingDirectory '%INSTALL_ROOT%' -RedirectStandardOutput '%LOGDIR%\synthetic-publisher.log' -RedirectStandardError '%LOGDIR%\synthetic-publisher-error.log' -PassThru; $p.Id"`) do set "SYNTHETIC_PID=%%P"
-  timeout /t 1 /nobreak >nul
+  for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -Command "$p=Start-Process -FilePath '%SYNTHETIC%' -WorkingDirectory '%INSTALL_ROOT%' -RedirectStandardOutput '%LOGDIR%\synthetic-publisher.log' -RedirectStandardError '%LOGDIR%\synthetic-publisher-error.log' -WindowStyle Hidden -PassThru; $p.Id"`) do set "SYNTHETIC_PID=%%P"
+  if defined SYNTHETIC_PID set "SYNTHETIC_START_EXIT=0"
+  if defined SYNTHETIC_PID if exist "%IPC_PROBE%" (
+    for /l %%N in (1,1,20) do (
+      if not "!IPC_READY_EXIT!"=="0" (
+        "%IPC_PROBE%" 1 >"%LOGDIR%\ipc-readiness.log" 2>&1
+        set "IPC_READY_EXIT=!ERRORLEVEL!"
+        if not "!IPC_READY_EXIT!"=="0" timeout /t 1 /nobreak >nul
+      )
+    )
+  )
+  if not defined SYNTHETIC_PID echo Synthetic publisher did not start.
+) else (
+  echo Installed synthetic publisher is missing; publisher start skipped.
 )
+if not defined SYNTHETIC_PID set "SYNTHETIC_START_EXIT=1"
+if not exist "%IPC_PROBE%" echo Installed IPC probe is missing; readiness check skipped.
+if defined SYNTHETIC_PID if not "!IPC_READY_EXIT!"=="0" echo IPC readiness failed; capture probe will still run for diagnostics.
 if exist "%IPC_PROBE%" (
-  echo Shared-memory IPC readiness probe:
-  "%IPC_PROBE%" 3
-  set "IPC_PROBE_EXIT=%ERRORLEVEL%"
+  echo Shared-memory IPC readiness: !IPC_READY_EXIT!
+  set "IPC_PROBE_EXIT=!IPC_READY_EXIT!"
 ) else (
   echo Installed IPC probe is missing; IPC probe skipped.
   set "IPC_PROBE_EXIT=2"
 )
 if exist "%PROBE%" (
   "%PROBE%"
-  set "PROBE_EXIT=%ERRORLEVEL%"
+  set "PROBE_EXIT=!ERRORLEVEL!"
 ) else (
   echo Installed capture probe is missing; probe skipped.
   set "PROBE_EXIT=2"
@@ -106,6 +122,7 @@ echo.
 echo CamBridge Native Install: %INSTALL_EXIT%
 echo Artifact copy: %COPY_EXIT%
 echo Installed ACL/MOTW audit: %AUDIT_EXIT%
+echo Synthetic publisher start: %SYNTHETIC_START_EXIT%
 echo Shared-memory IPC probe: %IPC_PROBE_EXIT%
 echo Capture probe: %PROBE_EXIT%
 echo Registered DLL: %DLL%
