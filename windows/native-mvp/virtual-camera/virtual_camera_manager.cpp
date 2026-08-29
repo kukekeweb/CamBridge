@@ -1,6 +1,7 @@
 #include "cambridge_media_source.h"
 
 #include <Windows.h>
+#include <devpropdef.h>
 #include <mfapi.h>
 #include <mfvirtualcamera.h>
 #include <shlwapi.h>
@@ -12,6 +13,17 @@ namespace {
 
 using cambridge::native::kCamBridgeMediaSourceClsidString;
 using cambridge::native::kCamBridgeVirtualCameraName;
+
+constexpr DEVPROPKEY kVirtualCameraSourceIdProperty = {
+    {0x6ac1fbf7, 0x45f7, 0x4e06, {0xbd, 0xa7, 0xf8, 0x17, 0xeb, 0xfa, 0x04, 0xd1}}, 4};
+constexpr DEVPROPKEY kVirtualCameraFriendlyNameProperty = {
+    {0x6ac1fbf7, 0x45f7, 0x4e06, {0xbd, 0xa7, 0xf8, 0x17, 0xeb, 0xfa, 0x04, 0xd1}}, 5};
+constexpr DEVPROPKEY kVirtualCameraLifetimeProperty = {
+    {0x6ac1fbf7, 0x45f7, 0x4e06, {0xbd, 0xa7, 0xf8, 0x17, 0xeb, 0xfa, 0x04, 0xd1}}, 6};
+constexpr DEVPROPKEY kVirtualCameraAccessProperty = {
+    {0x6ac1fbf7, 0x45f7, 0x4e06, {0xbd, 0xa7, 0xf8, 0x17, 0xeb, 0xfa, 0x04, 0xd1}}, 7};
+constexpr GUID kVirtualCameraKindAttribute =
+    {0xc7f7c57b, 0xdf30, 0x41d0, {0xaf, 0xfc, 0x15, 0x20, 0x1c, 0xdf, 0x92, 0x0d}};
 
 bool IsAtLeastVirtualCameraBuild() {
   using RtlGetVersionFn = LONG(WINAPI*)(PRTL_OSVERSIONINFOW);
@@ -59,6 +71,33 @@ HRESULT CreateVirtualCamera(IMFVirtualCamera** result) {
                                nullptr,
                                0,
                                result);
+}
+
+HRESULT SetVirtualCameraIdentity(IMFVirtualCamera* camera) {
+  if (camera == nullptr) return E_POINTER;
+  const auto sourceId = std::wstring(kCamBridgeMediaSourceClsidString);
+  const auto friendlyName = std::wstring(kCamBridgeVirtualCameraName);
+  const auto lifetime = static_cast<std::int32_t>(MFVirtualCameraLifetime_System);
+  const auto access = static_cast<std::int32_t>(MFVirtualCameraAccess_CurrentUser);
+  HRESULT hr = camera->SetUINT32(kVirtualCameraKindAttribute, 0);
+  if (FAILED(hr)) return hr;
+  hr = camera->AddProperty(
+      &kVirtualCameraSourceIdProperty, DEVPROP_TYPE_STRING,
+      reinterpret_cast<const BYTE*>(sourceId.c_str()),
+      static_cast<ULONG>((sourceId.size() + 1) * sizeof(wchar_t)));
+  if (FAILED(hr)) return hr;
+  hr = camera->AddProperty(
+      &kVirtualCameraFriendlyNameProperty, DEVPROP_TYPE_STRING,
+      reinterpret_cast<const BYTE*>(friendlyName.c_str()),
+      static_cast<ULONG>((friendlyName.size() + 1) * sizeof(wchar_t)));
+  if (FAILED(hr)) return hr;
+  hr = camera->AddProperty(
+      &kVirtualCameraLifetimeProperty, DEVPROP_TYPE_INT32,
+      reinterpret_cast<const BYTE*>(&lifetime), sizeof(lifetime));
+  if (FAILED(hr)) return hr;
+  return camera->AddProperty(
+      &kVirtualCameraAccessProperty, DEVPROP_TYPE_INT32,
+      reinterpret_cast<const BYTE*>(&access), sizeof(access));
 }
 
 HRESULT ProbeMediaSourceActivation() {
@@ -130,8 +169,21 @@ int wmain(int argc, wchar_t** argv) {
   PrintHr(install ? L"MFCreateVirtualCamera(CurrentUser)" : L"MFCreateVirtualCamera(open existing)", hr);
   if (SUCCEEDED(hr)) {
     if (install) {
-      hr = camera->Start(nullptr);
-      PrintHr(L"IMFVirtualCamera::Start", hr);
+      const HRESULT identityHr = SetVirtualCameraIdentity(camera.Get());
+      PrintHr(L"Virtual Camera identity properties", identityHr);
+      if (SUCCEEDED(identityHr) || identityHr == E_ACCESSDENIED) {
+        if (identityHr == E_ACCESSDENIED) {
+          std::wcout << L"Virtual Camera identity properties require elevation; continuing to Start for CurrentUser diagnostics.\n";
+        }
+        hr = camera->Start(nullptr);
+        PrintHr(L"IMFVirtualCamera::Start", hr);
+      } else {
+        hr = identityHr;
+      }
+      if (FAILED(hr)) {
+        (void)camera->Stop();
+        exitCode = 1;
+      }
     } else {
       (void)camera->Stop();
       hr = camera->Remove();

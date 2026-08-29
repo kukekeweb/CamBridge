@@ -67,6 +67,7 @@ Media Source test: types=3 start=0x0
 - `DllGetClassObject`: 成功
 - `IMFActivate`生成: 成功
 - media type: 3種類（1080p60 / 1080p30 / 720p60）
+- `IMFSampleAllocatorControl` / `UsesProvidedAllocator`契約: 成功
 - Media Source start/stop: 成功
 - Windows Frame Serverからのロード: 未確認
 
@@ -85,6 +86,8 @@ MFIsVirtualCameraTypeSupported: 0x0 (success)
 Per-user Custom Media Source registration: 0x0 (success)
 CoCreateInstance(IMFActivate): 0x0 (success)
 MFCreateVirtualCamera(CurrentUser): 0x0 (success)
+Virtual Camera identity properties: 0x80070005 (failure)
+Virtual Camera identity properties require elevation; continuing to Start for CurrentUser diagnostics.
 IMFVirtualCamera::Start: 0x80004002 (failure)
 Video input count: 0
 ```
@@ -93,10 +96,11 @@ Video input count: 0
 
 - A: HKCU / CurrentUserのCOM登録書き込み: 成功
 - B: `MFCreateVirtualCamera(CurrentUser)`: 成功
-- C: `IMFVirtualCamera::Start`: `E_NOINTERFACE`で失敗
-- D: Media Foundation capture clientのCamBridge列挙: 0台
-- E: Synthetic 1080p60をVirtual Cameraから取得: 未達
-- F: Discord / Zoom列挙: 未確認
+- C: identity propertiesは`E_ACCESSDENIED`。標準ユーザーではmetadata書き込みに権限がなく、Start可否と分離して継続した
+- D: `IMFVirtualCamera::Start`: `E_NOINTERFACE`で失敗
+- E: Media Foundation capture clientのCamBridge列挙: 0台
+- F: Synthetic 1080p60をVirtual Cameraから取得: 未達
+- G: Discord / Zoom列挙: 未確認
 
 この標準ユーザーセッションは管理者ではないため、HKLMの一回限り登録（`--machine`）はまだ実行していない。次の切り分けとして、ユーザーが明示的に許可した実機Windows上で、管理者PowerShellから一度だけ以下を試す。
 
