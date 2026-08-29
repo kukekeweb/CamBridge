@@ -9,6 +9,7 @@
 #include "cambridge_media_source.h"
 
 #include <iostream>
+#include <string>
 
 using Microsoft::WRL::ComPtr;
 using GetClassObjectFn = HRESULT(STDAPICALLTYPE*)(REFCLSID, REFIID, LPVOID*);
@@ -18,6 +19,8 @@ int wmain(int argc, wchar_t** argv) {
     std::wcerr << L"Usage: cambridge_media_source_tests <media-source-dll>\n";
     return 2;
   }
+  const bool useProvidedAllocator =
+      argc >= 3 && std::wstring(argv[2]) == L"--provided-allocator";
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   const bool comInitialized = SUCCEEDED(hr);
   if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return 1;
@@ -167,6 +170,19 @@ int wmain(int argc, wchar_t** argv) {
     MFShutdown();
     if (comInitialized) CoUninitialize();
     return 1;
+  }
+  if (useProvidedAllocator) {
+    ComPtr<IMFVideoSampleAllocator> providedAllocator;
+    if (FAILED(hr = MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&providedAllocator)))) {
+      std::wcerr << L"Provided sample allocator creation failed: 0x" << std::hex
+                 << static_cast<unsigned long>(hr) << L"\n";
+      return 1;
+    }
+    if (FAILED(hr = allocatorControl->SetDefaultAllocator(0, providedAllocator.Get()))) {
+      std::wcerr << L"Provided sample allocator setup failed: 0x" << std::hex
+                 << static_cast<unsigned long>(hr) << L"\n";
+      return 1;
+    }
   }
   if (FAILED(hr = source->Start(presentation.Get(), nullptr, nullptr))) {
     std::wcerr << L"Media Source start failed: 0x" << std::hex

@@ -141,6 +141,14 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   width_ = width;
   height_ = height;
   stride_ = width;
+  if (!sampleAllocator_) {
+    hr = MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&sampleAllocator_));
+    LogControlEvent(L"CamBridgeMediaStream", L"Start.CreateAllocator", hr);
+    if (FAILED(hr)) return hr;
+  }
+  hr = sampleAllocator_->InitializeSampleAllocator(10, mediaType_.Get());
+  LogControlEvent(L"CamBridgeMediaStream", L"Start.InitializeAllocator", hr);
+  if (FAILED(hr)) return hr;
   nextTimestamp100ns_ = 0;
   state_ = MF_STREAM_STATE_RUNNING;
   hr = events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);

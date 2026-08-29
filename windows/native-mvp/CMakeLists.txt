@@ -67,3 +67,5 @@ enable_testing()
 add_test(NAME cambridge_frame_ipc_tests COMMAND cambridge_frame_ipc_tests)
 add_test(NAME cambridge_media_source_tests
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source>)
+add_test(NAME cambridge_media_source_tests_provided_allocator
+  COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source> --provided-allocator)
