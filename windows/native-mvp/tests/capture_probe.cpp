@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <mfapi.h>
+#include <mferror.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
 #include <wrl/client.h>
@@ -42,9 +43,57 @@ std::wstring SafeDeviceName(const WCHAR* name) {
   return sanitized;
 }
 
+const wchar_t* HrName(HRESULT hr) {
+  switch (hr) {
+    case S_OK: return L"S_OK";
+    case E_ACCESSDENIED: return L"E_ACCESSDENIED";
+    case E_INVALIDARG: return L"E_INVALIDARG";
+    case E_NOINTERFACE: return L"E_NOINTERFACE";
+    case E_POINTER: return L"E_POINTER";
+    case MF_E_INVALIDMEDIATYPE: return L"MF_E_INVALIDMEDIATYPE";
+    case MF_E_INVALIDREQUEST: return L"MF_E_INVALIDREQUEST";
+    case MF_E_NOTACCEPTING: return L"MF_E_NOTACCEPTING";
+    case MF_E_NOT_INITIALIZED: return L"MF_E_NOT_INITIALIZED";
+    case MF_E_SHUTDOWN: return L"MF_E_SHUTDOWN";
+    default: return L"unknown";
+  }
+}
+
+std::wstring HrText(HRESULT hr) {
+  if (hr == MF_E_NOT_INITIALIZED) {
+    return L"Media Foundation platform is not initialized (MFStartup is required)";
+  }
+  WCHAR buffer[512]{};
+  const DWORD flags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
+  const DWORD length = FormatMessageW(flags, nullptr, static_cast<DWORD>(hr), 0,
+                                      buffer, ARRAYSIZE(buffer), nullptr);
+  return length == 0 ? L"text unavailable" : std::wstring(buffer, length);
+}
+
 void PrintHr(const wchar_t* label, HRESULT hr) {
   std::wcout << label << L": 0x" << std::hex << static_cast<unsigned long>(hr) << std::dec
-             << (SUCCEEDED(hr) ? L" (success)" : L" (failure)") << L"\n";
+             << (SUCCEEDED(hr) ? L" (success; " : L" (failure; ") << HrName(hr);
+  if (FAILED(hr)) std::wcout << L"; " << HrText(hr);
+  std::wcout << L")\n";
+}
+
+void PrintMediaType(const wchar_t* label, IMFMediaType* type) {
+  if (type == nullptr) {
+    std::wcout << label << L": <null>\n";
+    return;
+  }
+  GUID subtype{};
+  UINT32 width = 0, height = 0, fps = 0, denominator = 1;
+  HRESULT hr = type->GetGUID(MF_MT_SUBTYPE, &subtype);
+  if (FAILED(hr)) {
+    PrintHr(label, hr);
+    return;
+  }
+  (void)MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height);
+  (void)MFGetAttributeRatio(type, MF_MT_FRAME_RATE, &fps, &denominator);
+  std::wcout << label << L": subtype=" << (subtype == MFVideoFormat_NV12 ? L"NV12" : L"other")
+             << L" width=" << width << L" height=" << height << L" fps=" << fps
+             << L"/" << denominator << L"\n";
 }
 
 void PrintIpcStatus() {
@@ -116,8 +165,26 @@ int RunCaptureChild() {
       ComPtr<IMFSourceReader> reader;
       if (SUCCEEDED(hr)) hr = MFCreateSourceReaderFromMediaSource(
           source.Get(), readerAttributes.Get(), &reader);
-      PrintHr(L"    SourceReader(sync)", hr);
+      PrintHr(L"    MFCreateSourceReaderFromMediaSource", hr);
       if (SUCCEEDED(hr)) {
+        ComPtr<IMFMediaType> requestedType;
+        HRESULT typeHr = MFCreateMediaType(&requestedType);
+        if (SUCCEEDED(typeHr)) typeHr = requestedType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+        if (SUCCEEDED(typeHr)) typeHr = requestedType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12);
+        if (SUCCEEDED(typeHr)) typeHr = MFSetAttributeSize(requestedType.Get(), MF_MT_FRAME_SIZE,
+                                                            1920, 1080);
+        if (SUCCEEDED(typeHr)) typeHr = MFSetAttributeRatio(requestedType.Get(), MF_MT_FRAME_RATE,
+                                                             60, 1);
+        if (SUCCEEDED(typeHr)) {
+          typeHr = reader->SetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+                                               nullptr, requestedType.Get());
+        }
+        PrintHr(L"    IMFSourceReader::SetCurrentMediaType(NV12 1920x1080@60)", typeHr);
+        ComPtr<IMFMediaType> currentType;
+        HRESULT currentHr = reader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+                                                         &currentType);
+        PrintHr(L"    IMFSourceReader::GetCurrentMediaType", currentHr);
+        if (SUCCEEDED(currentHr)) PrintMediaType(L"    SourceReader selected media type", currentType.Get());
         DWORD actualStream = 0;
         DWORD flags = 0;
         LONGLONG timestamp = 0;
@@ -125,6 +192,12 @@ int RunCaptureChild() {
           ComPtr<IMFSample> sample;
           hr = reader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM, 0, &actualStream,
                                   &flags, &timestamp, &sample);
+          if (attempt < 3 || FAILED(hr)) {
+            PrintHr(L"    IMFSourceReader::ReadSample", hr);
+            std::wcout << L"        stream=" << actualStream << L" flags=0x" << std::hex << flags
+                       << std::dec << L" timestamp=" << timestamp
+                       << L" sample=" << (sample ? L"yes" : L"no") << L"\n";
+          }
           if (FAILED(hr)) break;
           if ((flags & MF_SOURCE_READERF_ENDOFSTREAM) != 0) break;
           if (!sample) continue;
@@ -208,9 +281,10 @@ bool IsCamBridgePresent() {
   return found;
 }
 
-bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode) {
-  if (childExitCode == nullptr) return false;
+bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOutput) {
+  if (childExitCode == nullptr || childOutput == nullptr) return false;
   *childExitCode = 1;
+  childOutput->clear();
   wchar_t modulePath[MAX_PATH]{};
   const DWORD length = GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath));
   if (length == 0 || length >= ARRAYSIZE(modulePath)) return false;
@@ -223,30 +297,43 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode) {
   SECURITY_ATTRIBUTES security{};
   security.nLength = sizeof(security);
   security.bInheritHandle = TRUE;
-  HANDLE nullOutput = CreateFileW(L"NUL", GENERIC_WRITE,
-                                  FILE_SHARE_READ | FILE_SHARE_WRITE, &security,
-                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (nullOutput == INVALID_HANDLE_VALUE) return false;
+  HANDLE outputRead = nullptr;
+  HANDLE outputWrite = nullptr;
+  if (!CreatePipe(&outputRead, &outputWrite, &security, 0)) return false;
+  if (!SetHandleInformation(outputRead, HANDLE_FLAG_INHERIT, 0)) {
+    CloseHandle(outputRead);
+    CloseHandle(outputWrite);
+    return false;
+  }
   startup.dwFlags = STARTF_USESTDHANDLES;
-  startup.hStdInput = nullOutput;
-  startup.hStdOutput = nullOutput;
-  startup.hStdError = nullOutput;
+  startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+  startup.hStdOutput = outputWrite;
+  startup.hStdError = outputWrite;
   PROCESS_INFORMATION process{};
   if (!CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, TRUE, 0, nullptr,
                       nullptr, &startup, &process)) {
-    CloseHandle(nullOutput);
+    CloseHandle(outputRead);
+    CloseHandle(outputWrite);
     return false;
   }
-  CloseHandle(nullOutput);
+  CloseHandle(outputWrite);
   const DWORD waitResult = WaitForSingleObject(process.hProcess, timeoutMs);
   if (waitResult == WAIT_TIMEOUT) {
     (void)TerminateProcess(process.hProcess, WAIT_TIMEOUT);
     (void)WaitForSingleObject(process.hProcess, 2000);
+  } else if (waitResult != WAIT_OBJECT_0 || !GetExitCodeProcess(process.hProcess, childExitCode)) {
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
+    CloseHandle(outputRead);
     return false;
   }
-  if (waitResult != WAIT_OBJECT_0 || !GetExitCodeProcess(process.hProcess, childExitCode)) {
+  char buffer[4096];
+  DWORD bytesRead = 0;
+  while (ReadFile(outputRead, buffer, sizeof(buffer), &bytesRead, nullptr) && bytesRead != 0) {
+    childOutput->append(buffer, bytesRead);
+  }
+  CloseHandle(outputRead);
+  if (waitResult == WAIT_TIMEOUT) {
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
     return false;
@@ -276,7 +363,12 @@ int wmain(int argc, wchar_t** argv) {
   int maximumSamplesReceived = 0;
   if (cambridgeFound) {
     DWORD childExitCode = 1;
-    const bool childCompleted = RunBoundedChild(timeoutMs, &childExitCode);
+    std::string childOutput;
+    const bool childCompleted = RunBoundedChild(timeoutMs, &childExitCode, &childOutput);
+    if (!childOutput.empty()) {
+      std::cout << "Capture child diagnostics:\n" << childOutput;
+      if (childOutput.back() != '\n') std::cout << '\n';
+    }
     if (!childCompleted) {
       std::wcout << L"Sample delivery timeout: " << timeoutMs << L" ms\n"
                  << L"Media Source Start / Stream Start / RequestSample / sample creation / "
