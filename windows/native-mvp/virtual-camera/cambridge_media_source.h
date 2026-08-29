@@ -67,6 +67,8 @@ class CamBridgeMediaStream final
  private:
   HRESULT CheckState() const;
   HRESULT CreateSample(IMFSample** sample);
+  void LogAllocatorState(const wchar_t* eventName, HRESULT hr,
+                         IMFMediaType* mediaType = nullptr) const;
 
   Microsoft::WRL::ComPtr<IMFMediaSource> parent_;
   Microsoft::WRL::ComPtr<IMFMediaEventQueue> events_;
@@ -74,6 +76,7 @@ class CamBridgeMediaStream final
   Microsoft::WRL::ComPtr<IMFAttributes> attributes_;
   Microsoft::WRL::ComPtr<IMFMediaType> mediaType_;
   Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> sampleAllocator_;
+  const wchar_t* allocatorSource_ = L"none";
   SharedFrameReader reader_;
   std::mutex mutex_;
   MF_STREAM_STATE state_ = MF_STREAM_STATE_STOPPED;

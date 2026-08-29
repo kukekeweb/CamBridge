@@ -18,6 +18,11 @@ void LogSampleEvent(const wchar_t* component, const wchar_t* eventName, HRESULT 
 void LogFormatEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
                     std::uint32_t width, std::uint32_t height,
                     std::uint32_t fps, std::uint32_t denominator);
+void LogAllocatorEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                       const wchar_t* allocatorSource, const void* stream,
+                       const void* allocator, const void* mediaType, REFGUID subtype,
+                       std::uint32_t width, std::uint32_t height,
+                       std::uint32_t fps, std::uint32_t denominator);
 void LogStreamSummary(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
                       std::uint64_t requestSamples, std::uint64_t samplesProduced,
                       std::uint64_t samplesDelivered, std::uint64_t lastSequence);

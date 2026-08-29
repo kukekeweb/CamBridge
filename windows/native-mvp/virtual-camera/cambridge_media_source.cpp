@@ -125,6 +125,23 @@ HRESULT CamBridgeMediaStream::CheckState() const {
   return shutdown_ ? MF_E_SHUTDOWN : (events_ ? S_OK : E_UNEXPECTED);
 }
 
+void CamBridgeMediaStream::LogAllocatorState(const wchar_t* eventName, HRESULT hr,
+                                             IMFMediaType* mediaType) const {
+  GUID subtype = GUID_NULL;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::uint32_t fps = 0;
+  std::uint32_t denominator = 0;
+  IMFMediaType* type = mediaType != nullptr ? mediaType : mediaType_.Get();
+  if (type != nullptr) {
+    (void)type->GetGUID(MF_MT_SUBTYPE, &subtype);
+    (void)MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height);
+    (void)MFGetAttributeRatio(type, MF_MT_FRAME_RATE, &fps, &denominator);
+  }
+  LogAllocatorEvent(L"CamBridgeMediaStream", eventName, hr, allocatorSource_, this,
+                    sampleAllocator_.Get(), type, subtype, width, height, fps, denominator);
+}
+
 HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   LogControlEvent(L"CamBridgeMediaStream", L"Start.begin", S_OK);
   if (mediaType == nullptr) return E_INVALIDARG;
@@ -141,13 +158,15 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   width_ = width;
   height_ = height;
   stride_ = width;
+  LogAllocatorState(L"Start.allocator.before", S_OK, mediaType_.Get());
   if (!sampleAllocator_) {
     hr = MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&sampleAllocator_));
-    LogControlEvent(L"CamBridgeMediaStream", L"Start.CreateAllocator", hr);
+    allocatorSource_ = L"internal";
+    LogAllocatorState(L"MFCreateVideoSampleAllocatorEx", hr, mediaType_.Get());
     if (FAILED(hr)) return hr;
   }
   hr = sampleAllocator_->InitializeSampleAllocator(10, mediaType_.Get());
-  LogControlEvent(L"CamBridgeMediaStream", L"Start.InitializeAllocator", hr);
+  LogAllocatorState(L"InitializeSampleAllocator", hr, mediaType_.Get());
   if (FAILED(hr)) return hr;
   nextTimestamp100ns_ = 0;
   state_ = MF_STREAM_STATE_RUNNING;
@@ -197,7 +216,8 @@ HRESULT CamBridgeMediaStream::SetSampleAllocator(IMFVideoSampleAllocator* alloca
   if (FAILED(hr)) return hr;
   if (state_ == MF_STREAM_STATE_RUNNING) return MF_E_INVALIDREQUEST;
   sampleAllocator_ = allocator;
-  LogControlEvent(L"CamBridgeMediaStream", L"SetSampleAllocator.end", S_OK);
+  allocatorSource_ = L"provided";
+  LogAllocatorState(L"SetSampleAllocator.end", S_OK, mediaType_.Get());
   return S_OK;
 }
 
@@ -259,11 +279,14 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   const auto bytes = static_cast<std::size_t>(stride_) * height_ * 3 / 2;
   Microsoft::WRL::ComPtr<IMFSample> result;
   HRESULT hr = S_OK;
+  const bool logSampleDetails = requestSampleCount_ <= 3;
   if (sampleAllocator_) {
     hr = sampleAllocator_->AllocateSample(&result);
+    if (logSampleDetails) LogAllocatorState(L"AllocateSample", hr, mediaType_.Get());
     if (FAILED(hr)) return hr;
   } else {
     hr = MFCreateSample(&result);
+    if (logSampleDetails) LogAllocatorState(L"MFCreateSample", hr, mediaType_.Get());
     if (FAILED(hr)) return hr;
     Microsoft::WRL::ComPtr<IMFMediaBuffer> newBuffer;
     hr = MFCreateMemoryBuffer(static_cast<DWORD>(bytes), &newBuffer);
@@ -273,10 +296,15 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   }
   Microsoft::WRL::ComPtr<IMFMediaBuffer> buffer;
   hr = result->GetBufferByIndex(0, &buffer);
+  if (logSampleDetails) LogAllocatorState(L"GetBufferByIndex", hr, mediaType_.Get());
   if (FAILED(hr)) return hr;
   BYTE* data = nullptr;
   DWORD maxLength = 0, currentLength = 0;
-  if (FAILED(hr = buffer->Lock(&data, &maxLength, &currentLength))) return hr;
+  if (FAILED(hr = buffer->Lock(&data, &maxLength, &currentLength))) {
+    if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Lock", hr, mediaType_.Get());
+    return hr;
+  }
+  if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Lock", hr, mediaType_.Get());
   FillBlack(data, maxLength, stride_, height_);
   Nv12Frame frame;
   const bool readLatest = reader_.IsOpen() && reader_.ReadLatest(frame);
@@ -294,7 +322,9 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
     nextTimestamp100ns_ = frame.timestamp100ns;
     lastSequence_ = frame.sequence;
   }
-  buffer->Unlock();
+  hr = buffer->Unlock();
+  if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Unlock", hr, mediaType_.Get());
+  if (FAILED(hr)) return hr;
   if (FAILED(hr = buffer->SetCurrentLength(static_cast<DWORD>(bytes)))) return hr;
   const auto fpsDuration = mediaType_ ? [&] {
     UINT32 fps = 60, den = 1;
@@ -320,6 +350,7 @@ HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
   const auto requestIndex = ++requestSampleCount_;
   if (requestIndex <= 3) {
     LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.begin", S_OK);
+    LogAllocatorState(L"RequestSample.allocator", S_OK, mediaType_.Get());
   }
   HRESULT hr = CheckState();
   if (FAILED(hr)) {
@@ -575,7 +606,13 @@ HRESULT CamBridgeMediaSource::SetDefaultAllocator(DWORD outputStreamId, IUnknown
   if (outputStreamId != 0 || allocator == nullptr || stream_ == nullptr) return E_INVALIDARG;
   Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> videoAllocator;
   HRESULT hr = allocator->QueryInterface(IID_PPV_ARGS(&videoAllocator));
+  if (FAILED(hr)) {
+    LogControlEvent(L"CamBridgeMediaSource", L"SetDefaultAllocator.QueryInterface", hr);
+  }
   if (FAILED(hr)) return hr;
+  LogAllocatorEvent(L"CamBridgeMediaSource", L"SetDefaultAllocator.allocator", S_OK,
+                    L"provided", stream_.Get(), videoAllocator.Get(), nullptr,
+                    GUID_NULL, 0, 0, 0, 0);
   hr = stream_->SetSampleAllocator(videoAllocator.Get());
   LogControlEvent(L"CamBridgeMediaSource", L"SetDefaultAllocator.end", hr);
   return hr;
@@ -586,7 +623,8 @@ HRESULT CamBridgeMediaSource::GetAllocatorUsage(DWORD outputStreamId, DWORD* inp
   if (outputStreamId != 0 || inputStreamId == nullptr || usage == nullptr) return E_INVALIDARG;
   *inputStreamId = 0;
   *usage = MFSampleAllocatorUsage_UsesProvidedAllocator;
-  LogControlEvent(L"CamBridgeMediaSource", L"GetAllocatorUsage", S_OK);
+  LogAllocatorEvent(L"CamBridgeMediaSource", L"GetAllocatorUsage", S_OK,
+                    L"provided", stream_.Get(), nullptr, nullptr, GUID_NULL, 0, 0, 0, 0);
   return S_OK;
 }
 

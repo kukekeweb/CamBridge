@@ -223,6 +223,24 @@ This proves that the capture child performs `MFStartup(MF_VERSION)` successfully
 
 The requested A/B experiment (“without `MFStartup` must return `MF_E_NOT_INITIALIZED`, with it must not”) was not added as a passing regression test because the Media Foundation enumeration/sample APIs exercised on this Windows host returned `S_OK` even without an explicit startup. Committing that assertion would encode a false platform assumption. The reliable regression evidence is the child’s explicit startup/shutdown output above and the existing Media Source tests.
 
+## Allocator identity diagnostic
+
+The Media Source diagnostic now records the stream pointer, allocator pointer, allocator source, media type pointer, subtype, dimensions, and frame rate for allocator control-path calls and the first three sample requests. The local tests showed both supported paths using the same allocator instance through initialization and allocation:
+
+```text
+provided: SetSampleAllocator.end allocator=A
+provided: InitializeSampleAllocator allocator=A -> S_OK
+provided: RequestSample.allocator allocator=A
+provided: AllocateSample allocator=A -> S_OK
+
+internal: MFCreateVideoSampleAllocatorEx allocator=A
+internal: InitializeSampleAllocator allocator=A -> S_OK
+internal: RequestSample.allocator allocator=A
+internal: AllocateSample allocator=A -> S_OK
+```
+
+The independent identity regression test also models an initialized allocator A being replaced by an uninitialized allocator B; B returns `MF_E_NOT_INITIALIZED` from `AllocateSample` as expected. This establishes the symptom model, but it does not yet identify the allocator used by the Frame Server run. The new diagnostic DLL must be installed under the registered machine path before the next real capture probe.
+
 ## CurrentUser Virtual Camera live gate
 
 標準ユーザーで次を実行した。

@@ -48,6 +48,12 @@ std::wstring HResultText(HRESULT hr) {
   return text;
 }
 
+std::wstring PointerText(const void* pointer) {
+  wchar_t text[32]{};
+  swprintf_s(text, L"0x%p", pointer);
+  return text;
+}
+
 void AppendLine(const std::wstring& line) {
   const std::wstring path = GetLogDirectory() + L"\\media-source-" +
                             std::to_wstring(GetCurrentProcessId()) + L".log";
@@ -134,6 +140,22 @@ void LogFormatEvent(const wchar_t* component, const wchar_t* eventName, HRESULT 
             L"hr=" + HResultText(hr) + L" width=" + std::to_wstring(width) +
                 L" height=" + std::to_wstring(height) + L" fps=" +
                 std::to_wstring(fps) + L" denominator=" +
+                std::to_wstring(denominator));
+}
+
+void LogAllocatorEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                       const wchar_t* allocatorSource, const void* stream,
+                       const void* allocator, const void* mediaType, REFGUID subtype,
+                       std::uint32_t width, std::uint32_t height,
+                       std::uint32_t fps, std::uint32_t denominator) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" allocatorSource=" +
+                (allocatorSource == nullptr ? L"<null>" : allocatorSource) +
+                L" stream=" + PointerText(stream) + L" allocator=" +
+                PointerText(allocator) + L" mediaType=" + PointerText(mediaType) +
+                L" subtype=" + GuidText(subtype) + L" width=" +
+                std::to_wstring(width) + L" height=" + std::to_wstring(height) +
+                L" fps=" + std::to_wstring(fps) + L" denominator=" +
                 std::to_wstring(denominator));
 }
 
