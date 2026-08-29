@@ -80,6 +80,11 @@ class CamBridgeMediaStream final
   bool shutdown_ = false;
   std::int64_t nextTimestamp100ns_ = 0;
   std::uint64_t lastSequence_ = 0;
+  std::uint64_t requestSampleCount_ = 0;
+  std::uint64_t samplesProduced_ = 0;
+  std::uint64_t samplesDelivered_ = 0;
+  LONGLONG lastSampleTimestamp100ns_ = 0;
+  LONGLONG lastSampleDuration100ns_ = 0;
   MFSampleAllocatorUsage allocatorUsage_ = MFSampleAllocatorUsage_UsesProvidedAllocator;
   std::uint32_t width_ = 1920;
   std::uint32_t height_ = 1080;
@@ -142,6 +147,7 @@ class CamBridgeMediaSource final
   std::mutex mutex_;
   bool initialized_ = false;
   bool shutdown_ = false;
+  bool streamAnnounced_ = false;
 };
 
 class CamBridgeMediaSourceActivate final

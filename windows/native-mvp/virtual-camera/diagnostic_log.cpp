@@ -104,4 +104,48 @@ void LogQueryInterface(const wchar_t* component, REFIID requestedIid, HRESULT hr
             L"iid=" + GuidText(requestedIid) + L" hr=" + HResultText(hr));
 }
 
+void LogIpcStatus(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                  bool mappingOpen, DWORD openError, LONG producerState,
+                  std::uint64_t publishedSequence, std::uint64_t lastReadSequence) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" mappingOpen=" +
+                std::to_wstring(mappingOpen ? 1 : 0) + L" openError=" +
+                HResultText(HRESULT_FROM_WIN32(openError)) + L" producerState=" +
+                std::to_wstring(producerState) + L" publishedSequence=" +
+                std::to_wstring(publishedSequence) + L" lastReadSequence=" +
+                std::to_wstring(lastReadSequence));
+}
+
+void LogSampleEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                    std::uint64_t sampleIndex, std::uint64_t sequence,
+                    LONGLONG timestamp100ns, DWORD bufferBytes) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" sampleIndex=" +
+                std::to_wstring(sampleIndex) + L" sequence=" +
+                std::to_wstring(sequence) + L" timestamp100ns=" +
+                std::to_wstring(timestamp100ns) + L" bufferBytes=" +
+                std::to_wstring(bufferBytes));
+}
+
+void LogFormatEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                    std::uint32_t width, std::uint32_t height,
+                    std::uint32_t fps, std::uint32_t denominator) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" width=" + std::to_wstring(width) +
+                L" height=" + std::to_wstring(height) + L" fps=" +
+                std::to_wstring(fps) + L" denominator=" +
+                std::to_wstring(denominator));
+}
+
+void LogStreamSummary(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                      std::uint64_t requestSamples, std::uint64_t samplesProduced,
+                      std::uint64_t samplesDelivered, std::uint64_t lastSequence) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" requestSamples=" +
+                std::to_wstring(requestSamples) + L" samplesProduced=" +
+                std::to_wstring(samplesProduced) + L" samplesDelivered=" +
+                std::to_wstring(samplesDelivered) + L" lastSequence=" +
+                std::to_wstring(lastSequence));
+}
+
 }  // namespace cambridge::native

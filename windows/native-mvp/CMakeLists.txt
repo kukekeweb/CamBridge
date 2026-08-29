@@ -49,7 +49,7 @@ add_executable(cambridge_capture_probe
   tests/capture_probe.cpp
 )
 target_compile_definitions(cambridge_capture_probe PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(cambridge_capture_probe PRIVATE mf mfplat mfreadwrite mfuuid ole32)
+target_link_libraries(cambridge_capture_probe PRIVATE cambridge_frame_ipc mf mfplat mfreadwrite mfuuid ole32)
 
 add_executable(cambridge_frame_ipc_probe
   tests/frame_ipc_probe.cpp

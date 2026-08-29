@@ -112,22 +112,49 @@ SharedFrameReader::~SharedFrameReader() { Close(); }
 
 bool SharedFrameReader::Open(const std::wstring& mappingName) {
   Close();
+  lastOpenError_ = ERROR_SUCCESS;
   mapping_ = OpenFileMappingW(FILE_MAP_READ, FALSE, mappingName.c_str());
   if (mapping_ == nullptr) {
+    lastOpenError_ = GetLastError();
     return false;
   }
   mappingBytes_ = SharedFrameMappingBytes();
   view_ = MapViewOfFile(mapping_, FILE_MAP_READ, 0, 0, mappingBytes_);
   if (view_ == nullptr) {
+    const DWORD error = GetLastError();
     Close();
+    lastOpenError_ = error;
     return false;
   }
   const auto* header = static_cast<const SharedFrameHeader*>(view_);
   if (header->version != kFrameIpcVersion || header->headerBytes != sizeof(SharedFrameHeader)) {
     Close();
+    lastOpenError_ = ERROR_INVALID_DATA;
     return false;
   }
   lastSequence_ = 0;
+  return true;
+}
+
+bool SharedFrameReader::GetStatus(SharedFrameStatus* status) const {
+  if (status == nullptr) return false;
+  *status = {};
+  status->mappingOpen = view_ != nullptr;
+  status->openError = lastOpenError_;
+  status->lastReadSequence = lastSequence_;
+  if (view_ == nullptr) return false;
+  const auto* header = static_cast<const SharedFrameHeader*>(view_);
+  // The reader maps the section with FILE_MAP_READ. Do not use an interlocked
+  // read here: InterlockedCompareExchange is a write-capable operation and can
+  // fault in a read-only view while the publisher is active.
+  MemoryBarrier();
+  status->producerState = header->producerState;
+  status->publishedSequence = static_cast<std::uint64_t>(header->publishedSequence);
+  MemoryBarrier();
+  status->width = header->width;
+  status->height = header->height;
+  status->stride = header->stride;
+  status->frameBytes = header->frameBytes;
   return true;
 }
 
@@ -177,6 +204,7 @@ void SharedFrameReader::Close() {
   }
   mappingBytes_ = 0;
   lastSequence_ = 0;
+  lastOpenError_ = ERROR_SUCCESS;
 }
 
 }  // namespace cambridge::native

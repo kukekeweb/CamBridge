@@ -7,6 +7,7 @@ set "INSTALL_ROOT=%ProgramFiles%\CamBridge\Native"
 set "MANAGER=%INSTALL_ROOT%\cambridge_virtual_camera_manager.exe"
 set "PROBE=%INSTALL_ROOT%\cambridge_capture_probe.exe"
 set "SYNTHETIC=%INSTALL_ROOT%\cambridge_synthetic_publisher.exe"
+set "IPC_PROBE=%INSTALL_ROOT%\cambridge_frame_ipc_probe.exe"
 set "DLL=%INSTALL_ROOT%\cambridge_media_source.dll"
 set "LOGDIR=%ROOT%build\native-mvp\diagnostics\install"
 set "CAMBRIDGE_NATIVE_MVP_LOG_DIR=%LOGDIR%"
@@ -66,6 +67,14 @@ if exist "%SYNTHETIC%" (
   for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -Command "$p=Start-Process -FilePath '%SYNTHETIC%' -WorkingDirectory '%INSTALL_ROOT%' -RedirectStandardOutput '%LOGDIR%\synthetic-publisher.log' -RedirectStandardError '%LOGDIR%\synthetic-publisher-error.log' -PassThru; $p.Id"`) do set "SYNTHETIC_PID=%%P"
   timeout /t 1 /nobreak >nul
 )
+if exist "%IPC_PROBE%" (
+  echo Shared-memory IPC readiness probe:
+  "%IPC_PROBE%" 3
+  set "IPC_PROBE_EXIT=%ERRORLEVEL%"
+) else (
+  echo Installed IPC probe is missing; IPC probe skipped.
+  set "IPC_PROBE_EXIT=2"
+)
 if exist "%PROBE%" (
   "%PROBE%"
   set "PROBE_EXIT=%ERRORLEVEL%"
@@ -79,6 +88,7 @@ echo.
 echo CamBridge Native Install: %INSTALL_EXIT%
 echo Artifact copy: %COPY_EXIT%
 echo Installed ACL/MOTW audit: %AUDIT_EXIT%
+echo Shared-memory IPC probe: %IPC_PROBE_EXIT%
 echo Capture probe: %PROBE_EXIT%
 echo Registered DLL: %DLL%
 echo Frame Server logs: C:\ProgramData\CamBridge\logs\media-source-*.log

@@ -2,7 +2,9 @@
 
 #include <chrono>
 #include <csignal>
+#include <algorithm>
 #include <iostream>
+#include <string>
 #include <thread>
 
 namespace {
@@ -36,19 +38,30 @@ cambridge::native::Nv12Frame MakeFrame(std::uint64_t sequence) {
 }
 }  // namespace
 
-int wmain() {
+int wmain(int argc, wchar_t** argv) {
   std::signal(SIGINT, Stop);
   std::signal(SIGTERM, Stop);
+  std::uint32_t durationMs = 0;
+  for (int i = 1; i < argc; ++i) {
+    if (std::wstring(argv[i]) == L"--duration-ms" && i + 1 < argc) {
+      durationMs = static_cast<std::uint32_t>(std::max(1, _wtoi(argv[++i])));
+    }
+  }
   cambridge::native::SharedFrameProducer producer;
   if (!producer.Create()) {
     std::wcerr << L"CamBridge synthetic producer: CreateFileMapping/CreateEvent failed: "
                << GetLastError() << L"\n";
     return 1;
   }
-  std::wcout << L"CamBridge synthetic producer: 1920x1080 NV12 @ 60fps\n";
+  std::wcout << L"CamBridge synthetic producer: 1920x1080 NV12 @ 60fps\n"
+             << L"IPC ready: mapping=" << cambridge::native::kFrameMappingName
+             << L" event=" << cambridge::native::kFrameReadyEventName << L"\n";
   std::uint64_t sequence = 0;
   auto next = std::chrono::steady_clock::now();
-  while (g_running != 0) {
+  const auto deadline = durationMs == 0
+                            ? std::chrono::steady_clock::time_point::max()
+                            : next + std::chrono::milliseconds(durationMs);
+  while (g_running != 0 && std::chrono::steady_clock::now() < deadline) {
     ++sequence;
     auto frame = MakeFrame(sequence);
     if (!producer.Publish(frame)) {
@@ -58,6 +71,7 @@ int wmain() {
     next += std::chrono::microseconds(16667);
     std::this_thread::sleep_until(next);
   }
+  std::wcout << L"Synthetic publisher stopped: publishedSequence=" << sequence << L"\n";
   producer.Close();
   return 0;
 }

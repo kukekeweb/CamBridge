@@ -46,6 +46,18 @@ struct Nv12Frame {
   std::vector<std::byte> bytes;
 };
 
+struct SharedFrameStatus {
+  bool mappingOpen = false;
+  DWORD openError = ERROR_SUCCESS;
+  LONG producerState = 0;
+  std::uint64_t publishedSequence = 0;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::uint32_t stride = 0;
+  std::uint32_t frameBytes = 0;
+  std::uint64_t lastReadSequence = 0;
+};
+
 std::size_t SharedFrameMappingBytes();
 
 class SharedFrameProducer {
@@ -79,14 +91,17 @@ class SharedFrameReader {
 
   bool Open(const std::wstring& mappingName = kFrameMappingName);
   bool ReadLatest(Nv12Frame& output);
+  bool GetStatus(SharedFrameStatus* status) const;
   void Close();
   bool IsOpen() const { return view_ != nullptr; }
+  DWORD lastOpenError() const { return lastOpenError_; }
 
  private:
   HANDLE mapping_ = nullptr;
   void* view_ = nullptr;
   std::size_t mappingBytes_ = 0;
   std::uint64_t lastSequence_ = 0;
+  DWORD lastOpenError_ = ERROR_SUCCESS;
 };
 
 }  // namespace cambridge::native

@@ -183,6 +183,78 @@ int wmain(int argc, wchar_t** argv) {
     if (comInitialized) CoUninitialize();
     return 1;
   }
+  ComPtr<IMFMediaEvent> sourceEvent;
+  if (FAILED(hr = source->GetEvent(MF_EVENT_FLAG_NO_WAIT, &sourceEvent))) {
+    std::wcerr << L"Media Source start event missing: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  MediaEventType sourceEventType = MEUnknown;
+  if (FAILED(hr = sourceEvent->GetType(&sourceEventType)) ||
+      (sourceEventType != MENewStream && sourceEventType != MEUpdatedStream)) {
+    std::wcerr << L"Media Source start event is not stream announcement: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L" type=" << std::dec
+               << static_cast<unsigned long>(sourceEventType) << L"\n";
+    return 1;
+  }
+  PROPVARIANT eventValue;
+  PropVariantInit(&eventValue);
+  ComPtr<IMFMediaStream> mediaStream;
+  if (FAILED(hr = sourceEvent->GetValue(&eventValue)) || eventValue.vt != VT_UNKNOWN ||
+      eventValue.punkVal == nullptr ||
+      FAILED(hr = eventValue.punkVal->QueryInterface(IID_PPV_ARGS(&mediaStream)))) {
+    std::wcerr << L"Media Source stream announcement payload missing: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    PropVariantClear(&eventValue);
+    return 1;
+  }
+  PropVariantClear(&eventValue);
+  ComPtr<IMFMediaEvent> streamStartedEvent;
+  MediaEventType streamStartedType = MEUnknown;
+  if (FAILED(hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamStartedEvent)) ||
+      FAILED(hr = streamStartedEvent->GetType(&streamStartedType)) ||
+      streamStartedType != MEStreamStarted) {
+    std::wcerr << L"Media Stream start event missing: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L" type=" << std::dec
+               << static_cast<unsigned long>(streamStartedType) << L"\n";
+    return 1;
+  }
+  ComPtr<IMFMediaEvent> streamEvent;
+  if (FAILED(hr = mediaStream->RequestSample(nullptr)) ||
+      FAILED(hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamEvent))) {
+    std::wcerr << L"Media Stream sample request failed: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  MediaEventType streamEventType = MEUnknown;
+  PROPVARIANT sampleValue;
+  PropVariantInit(&sampleValue);
+  ComPtr<IMFSample> sample;
+  if (FAILED(hr = streamEvent->GetType(&streamEventType)) ||
+      streamEventType != MEMediaSample || FAILED(hr = streamEvent->GetValue(&sampleValue)) ||
+      sampleValue.vt != VT_UNKNOWN || sampleValue.punkVal == nullptr ||
+      FAILED(hr = sampleValue.punkVal->QueryInterface(IID_PPV_ARGS(&sample)))) {
+    std::wcerr << L"Media Stream sample event missing: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L" type=" << std::dec
+               << static_cast<unsigned long>(streamEventType) << L"\n";
+    PropVariantClear(&sampleValue);
+    return 1;
+  }
+  PropVariantClear(&sampleValue);
+  LONGLONG sampleTime = 0;
+  LONGLONG sampleDuration = 0;
+  ComPtr<IMFMediaBuffer> sampleBuffer;
+  DWORD sampleBytes = 0;
+  if (FAILED(hr = sample->GetSampleTime(&sampleTime)) ||
+      FAILED(hr = sample->GetSampleDuration(&sampleDuration)) ||
+      FAILED(hr = sample->GetBufferByIndex(0, &sampleBuffer)) ||
+      FAILED(hr = sampleBuffer->GetCurrentLength(&sampleBytes)) || sampleBytes == 0) {
+    std::wcerr << L"Media Stream sample payload invalid: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  std::wcout << L"Media Stream sample test: time=" << sampleTime
+             << L" duration=" << sampleDuration << L" bytes=" << sampleBytes << L"\n";
   std::wcout << L"Media Source test: types=" << typeCount
              << L" start=0x" << std::hex << static_cast<unsigned long>(hr) << std::dec << L"\n";
   source->Stop();
@@ -194,6 +266,12 @@ int wmain(int argc, wchar_t** argv) {
   typeHandler.Reset();
   activate.Reset();
   factory.Reset();
+  sampleBuffer.Reset();
+  sample.Reset();
+  streamEvent.Reset();
+  streamStartedEvent.Reset();
+  mediaStream.Reset();
+  sourceEvent.Reset();
   FreeLibrary(dll);
   MFShutdown();
   if (comInitialized) CoUninitialize();

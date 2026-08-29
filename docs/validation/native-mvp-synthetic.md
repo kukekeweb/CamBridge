@@ -1,6 +1,6 @@
 # Native MVP Synthetic Validation
 
-検証日: 2026-08-29
+検証日: 2026-08-30
 
 この文書は、Web Stage 1の実機検証結果とは分離した、Windows Native MVPの合成入力検証記録である。Safari、WebRTC、H.264 RTP、デコーダ、Discordはこの検証に含めない。
 
@@ -53,6 +53,13 @@ IPC probe exit=0
 
 この結果は共有メモリIPCの検証であり、Virtual Cameraからのframe取得を意味しない。
 
+追加診断:
+
+- Publisherに`--duration-ms`を指定した有限時間起動を追加した。
+- Publisherは起動時に`IPC ready`を表示する。
+- IPC probeはproducer stateとlatest sequenceを表示する。
+- Publisher稼働中のIPC probeで、約60fps、単調増加sequence、`producerState=1`を再確認した。
+
 ## Custom Media Source
 
 `cambridge_media_source_tests.exe`でDLLを直接ロードし、COM class factory、activation、presentation descriptor、media type一覧、source start/stopを確認した。
@@ -70,6 +77,74 @@ Media Source test: types=3 start=0x0
 - `IMFSampleAllocatorControl` / `UsesProvidedAllocator`契約: 成功
 - Media Source start/stop: 成功
 - Windows Frame Serverからのロード: 未確認
+
+### Synthetic sample path diagnosis
+
+最初のcapture probeは同期`IMFSourceReader::ReadSample`を無期限に待つ実装で、CamBridge列挙後に終了しなかった。Frame Server logでは、`Start`までは到達するが`RequestSample`以降の観測が無かった。
+
+公式SimpleMediaSourceとの差分を一つずつ検証し、CamBridgeの`Start`がsource event queueへ`MENewStream`/`MEUpdatedStream`を送らず、`MEStreamStarted`と`MESourceStarted`だけを送っていたことを確認した。修正前の回帰テストは、Start後の先頭eventがstream announcementでないため失敗した。`MENewStream`をstream開始前に追加した後、次の直接Media Sourceテストが成功した。
+
+```text
+Media Stream sample test: time=5166677 duration=166666 bytes=3110400
+Media Source test: types=3 start=0x0
+```
+
+Publisher稼働中はMedia Sourceのcontrol logで以下を確認した。
+
+```text
+Initialize.ipc mappingOpen=1 producerState=1 publishedSequence=31
+Start.format width=1920 height=1080 fps=60 denominator=1
+RequestSample.begin
+CreateSample.ipc mappingOpen=1 producerState=1 publishedSequence=31 lastReadSequence=31
+SampleCreated sampleIndex=1 sequence=31 timestamp100ns=5166677 bufferBytes=3110400
+SampleDelivered sampleIndex=1 sequence=31 timestamp100ns=5166677 bufferBytes=3110400
+Shutdown.summary requestSamples=1 samplesProduced=1 samplesDelivered=1 lastSequence=31
+```
+
+この直接テストは、Media Source自身のsample生成・event配送とPublisher IPCの接続を検証する。Frame Server経由のVirtual Camera capture PASSを意味しない。
+
+### Bounded capture probe
+
+capture probeはcapture処理を子プロセスへ隔離し、親が既定10秒（`--timeout-ms`で変更可能）で監視する構成へ変更した。`MFCreateSourceReaderFromMediaSource`または`ReadSample`がブロックしても、probe全体は永久待機しない。timeout時は次を表示する。
+
+- `Sample delivery timeout`
+- Media Source / Stream / RequestSample / sample creation / deliveryのcontrol log場所
+- `mappingOpen`
+- IPC open error
+- producer state
+- latest synthetic sequence
+
+修正版のprobeを、更新前のProgram Files DLLに対して実行した結果は以下である。
+
+```text
+Video input count: 1
+[0] CamBridge (Windows ?????)
+CamBridge camera found: YES
+Sample delivery timeout: 1000 ms
+IPC state: mappingOpen=true openError=0x0 producerState=1 latest synthetic sequence=103
+Synthetic/sample probe: 0 samples
+```
+
+これはtimeout処理とPublisher IPC観測の成功であり、更新版DLLをFrame Serverへ再登録した後のcapture成功とは分離する。更新版DLLによるProgram Files/HKLM登録後のlive capture再検証が残っている。
+
+### Latest control-path evidence
+
+2026-08-30のcapture probeで生成されたMedia Source logには、次の順序が記録された。
+
+```text
+ActivateObject
+Initialize.ipc mappingOpen=1 producerState=1
+CreatePresentationDescriptor
+Start.format width=1920 height=1080 fps=60
+RequestSample.begin
+CreateSample.ipc mappingOpen=1 producerState=1
+SampleCreated sampleIndex=1 sequence=... bufferBytes=3110400
+SampleDelivered sampleIndex=1 sequence=... bufferBytes=3110400
+```
+
+この結果から、Publisherの共有メモリopen、Media Source activation、stream start、最初のRequestSample、NV12 1080p sample生成、Media Stream event queueへの配送までは到達している。capture probeのSourceReader側では同じ実行でsample取得完了を確認できず、bounded timeoutとなった。
+
+なお、その実行時のHKLM登録先は `C:\Program Files\CamBridge\Native\cambridge_media_source.dll`（ビルド直後の `build\\native-mvp\\Release\\cambridge_media_source.dll` とは別artifact）だった。したがって、更新版のstream-announcement修正をProgram Files/HKLMへ反映した後に、同じprobeを再実行する必要がある。現時点ではSynthetic Virtual Camera captureをPASSとは判定しない。
 
 ## CurrentUser Virtual Camera live gate
 
@@ -120,6 +195,9 @@ Video input count: 0
 - CurrentUser / machine registration commandの分離
 - actual Windows build number gate
 - Media Foundation capture probe skeleton
+- bounded capture probe with first-sample diagnostics
+- Media Source stream-announcement event contract
+- Publisher/IPC readiness output and installed IPC probe
 
 未実装:
 

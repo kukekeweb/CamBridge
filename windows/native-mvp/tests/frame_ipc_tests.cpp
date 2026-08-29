@@ -29,12 +29,22 @@ void TestLatestFrameAndMissingInitialFrame() {
   cambridge::native::Nv12Frame output;
   assert(!reader.ReadLatest(output));
   assert(producer.Publish(MakeFrame(1, 10)));
+  cambridge::native::SharedFrameStatus status;
+  assert(reader.GetStatus(&status));
+  assert(status.mappingOpen);
+  assert(status.producerState == 1);
+  assert(status.publishedSequence == 1);
+  assert(status.width == 4);
+  assert(status.height == 2);
+  assert(status.frameBytes == 12);
   assert(reader.ReadLatest(output));
   assert(output.sequence == 1);
   assert(output.bytes.front() == static_cast<std::byte>(10));
   assert(!reader.ReadLatest(output));
   assert(producer.Publish(MakeFrame(2, 20)));
   assert(producer.Publish(MakeFrame(3, 30)));
+  assert(reader.GetStatus(&status));
+  assert(status.publishedSequence == 3);
   assert(reader.ReadLatest(output));
   assert(output.sequence == 3);
   assert(output.bytes.front() == static_cast<std::byte>(30));
@@ -50,12 +60,22 @@ void TestInvalidFrameIsRejected() {
   invalid.bytes.clear();
   assert(!producer.Publish(invalid));
 }
+
+void TestReaderOpenFailureKeepsDiagnosticError() {
+  cambridge::native::SharedFrameReader reader;
+  assert(!reader.Open(L"Local\\CamBridge.Test.Mapping.DoesNotExist"));
+  cambridge::native::SharedFrameStatus status;
+  assert(!reader.GetStatus(&status));
+  assert(!status.mappingOpen);
+  assert(status.openError != ERROR_SUCCESS);
+}
 }  // namespace
 
 int wmain() {
   TestMappingSize();
   TestLatestFrameAndMissingInitialFrame();
   TestInvalidFrameIsRejected();
+  TestReaderOpenFailureKeepsDiagnosticError();
   std::cout << "CamBridge frame IPC tests passed\n";
   return 0;
 }

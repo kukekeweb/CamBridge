@@ -19,7 +19,8 @@ $requiredFiles = @(
     'cambridge_media_source.dll',
     'cambridge_virtual_camera_manager.exe',
     'cambridge_capture_probe.exe',
-    'cambridge_synthetic_publisher.exe'
+    'cambridge_synthetic_publisher.exe',
+    'cambridge_frame_ipc_probe.exe'
 )
 
 Write-Output "Source artifact root: $SourceRoot"

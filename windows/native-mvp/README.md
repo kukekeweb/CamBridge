@@ -63,7 +63,21 @@ The Media Source writes control-path diagnostics to
 `C:\ProgramData\CamBridge\logs\media-source-<pid>.log` when possible. Logs are
 PID-scoped so the CamBridge process and Windows Frame Server process can be separated.
 They include DLL/class factory, QueryInterface IID/HRESULT, activation, initialization,
-descriptor, allocator, Start/Stop/Shutdown events, and no per-frame messages.
+descriptor, allocator, Start/Stop/Shutdown events, IPC state, stream-announcement,
+RequestSample, and the first three sample summaries. They do not log every video frame.
+
+For an isolated synthetic check, start the Publisher for a finite interval and inspect
+the shared-memory reader:
+
+```powershell
+.\build\native-mvp\Release\cambridge_synthetic_publisher.exe --duration-ms 5000
+.\build\native-mvp\Release\cambridge_frame_ipc_probe.exe 3
+```
+
+The capture probe has a bounded child-process guard. Its default sample-delivery limit
+is 10 seconds; use `--timeout-ms 2000` for a shorter diagnostic. On timeout it prints
+the IPC mapping state and points to the Media Source control log instead of waiting
+forever. A successful gate requires at least 120 samples.
 
 The manager checks the actual Windows build number (not the ProductName string) and
 requires build 22000 or newer. `--machine` writes HKLM and therefore requires UAC;
