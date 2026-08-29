@@ -128,6 +128,7 @@ int wmain(int argc, wchar_t** argv) {
   bool install = false;
   bool uninstall = false;
   bool machine = false;
+  bool identityProperties = false;
   std::wstring sourcePath;
   for (int i = 1; i < argc; ++i) {
     const std::wstring arg = argv[i];
@@ -135,11 +136,13 @@ int wmain(int argc, wchar_t** argv) {
     else if (arg == L"--uninstall") uninstall = true;
     else if (arg == L"--source" && i + 1 < argc) sourcePath = argv[++i];
     else if (arg == L"--machine") machine = true;
+    else if (arg == L"--identity-properties") identityProperties = true;
   }
   if (install == uninstall || (!install && !uninstall)) {
     std::wcerr << L"Usage: cambridge_virtual_camera_manager --install --source <dll>\n"
                << L"       cambridge_virtual_camera_manager --uninstall --source <dll>\n"
-               << L"       add --machine for one-time elevated machine registration\n";
+               << L"       add --machine for one-time elevated machine registration\n"
+               << L"       add --identity-properties only for explicit identity-property diagnostics\n";
     return 2;
   }
   if (!IsAtLeastVirtualCameraBuild()) {
@@ -179,12 +182,14 @@ int wmain(int argc, wchar_t** argv) {
   PrintHr(install ? L"MFCreateVirtualCamera(CurrentUser)" : L"MFCreateVirtualCamera(open existing)", hr);
   if (SUCCEEDED(hr)) {
     if (install) {
-      const HRESULT identityHr = SetVirtualCameraIdentity(camera.Get());
-      PrintHr(L"Virtual Camera identity properties", identityHr);
-      if (SUCCEEDED(identityHr) || identityHr == E_ACCESSDENIED) {
-        if (identityHr == E_ACCESSDENIED) {
-          std::wcout << L"Virtual Camera identity properties require elevation; continuing to Start for CurrentUser diagnostics.\n";
-        }
+      HRESULT identityHr = S_OK;
+      if (identityProperties) {
+        identityHr = SetVirtualCameraIdentity(camera.Get());
+        PrintHr(L"Virtual Camera identity properties", identityHr);
+      } else {
+        std::wcout << L"Virtual Camera identity properties: skipped (use --identity-properties for an explicit diagnostic)\n";
+      }
+      if (SUCCEEDED(identityHr)) {
         hr = camera->Start(nullptr);
         PrintHr(L"IMFVirtualCamera::Start", hr);
       } else {

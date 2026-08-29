@@ -23,6 +23,8 @@ int wmain() {
   UINT32 count = 0;
   if (SUCCEEDED(hr)) hr = MFEnumDeviceSources(attributes.Get(), &devices, &count);
   std::wcout << L"Video input count: " << count << L"\n";
+  bool cambridgeFound = false;
+  int maximumSamplesReceived = 0;
   for (UINT32 i = 0; i < count; ++i) {
     WCHAR* name = nullptr;
     WCHAR* link = nullptr;
@@ -34,6 +36,7 @@ int wmain() {
     std::wcout << L"[" << i << L"] " << (name ? name : L"<no name>") << L"\n"
                << L"    identity: " << (link ? link : L"<no symbolic link>") << L"\n";
     if (name && wcsstr(name, L"CamBridge") != nullptr) {
+      cambridgeFound = true;
       ComPtr<IMFMediaSource> source;
       HRESULT openHr = devices[i]->ActivateObject(IID_PPV_ARGS(&source));
       std::wcout << L"    ActivateObject: 0x" << std::hex << static_cast<unsigned long>(openHr)
@@ -59,6 +62,7 @@ int wmain() {
             if (sample) ++frames;
           }
           std::wcout << L"    Samples received: " << frames << L"\n";
+          if (frames > maximumSamplesReceived) maximumSamplesReceived = frames;
         }
         source->Shutdown();
       }
@@ -68,7 +72,9 @@ int wmain() {
     devices[i]->Release();
   }
   if (devices) CoTaskMemFree(devices);
+  std::wcout << L"CamBridge camera found: " << (cambridgeFound ? L"YES" : L"NO") << L"\n";
+  std::wcout << L"Synthetic/sample probe: " << maximumSamplesReceived << L" samples\n";
   MFShutdown();
   if (hr != RPC_E_CHANGED_MODE) CoUninitialize();
-  return 0;
+  return cambridgeFound && maximumSamplesReceived >= 120 ? 0 : 1;
 }

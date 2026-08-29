@@ -29,7 +29,7 @@ Frame Server の control path を観測して原因を分離します。
 | `IKsControl` | 実装 | 実装 | QI test 対象 |
 | `IMFSampleAllocatorControl` | 実装 | 実装 | `UsesProvidedAllocator` を返す |
 | source attributes | activation attributes をコピーし、sensor profile collection を追加 | 同等のコピーと Legacy/HighFrameRate profile を追加 | 契約を比較中 |
-| stream attributes | source/stream の属性を公開 | source/stream attributes を公開 | descriptor 属性に差分あり |
+| stream attributes | source/stream の属性を公開 | source/stream attributes と descriptor attributes を公開 | descriptor 属性を追加済み |
 
 CamBridge は WRL `RuntimeClass` の複数インターフェース実装で、公式 sample は
 `winrt::implements` を使用しています。実装方式は異なりますが、必要な COM
@@ -44,7 +44,7 @@ interface の集合は同じです。`IMFMediaSource` は `IMFMediaSourceEx` の
 | `IMFMediaStream2` | 実装 | 実装 | QI test 対象 |
 | `IMFMediaStream` | 継承メソッドを実装 | 継承メソッドを実装 | QI test 対象 |
 | `IMFMediaEventGenerator` | 継承メソッドを実装 | 継承メソッドを実装 | QI test 対象 |
-| stream descriptor attributes | descriptor 自体へ category/id/shared/frame-source-types を設定 | 現行実装は stream attributes に設定、descriptor 自体への設定を監査中 | 有力な contract gap |
+| stream descriptor attributes | descriptor 自体へ category/id/shared/frame-source-types を設定 | descriptor と stream attributes の両方へ設定 | contract test 済み |
 | provided allocator | media type で allocator を初期化してから使用 | allocator を受け取り、現行実装は初期化経路を監査中 | 有力な contract gap |
 | stream events/state | state transition と event を検証・通知 | state を変更し、一部 event を通知 | lifecycle 差分 |
 
@@ -116,8 +116,8 @@ Release DLL に対して `dumpbin /DEPENDENTS` を実行した結果、依存先
 | 仮説 | 内容 | 現在の証拠 | 次の観測 |
 |---|---|---|---|
 | A | HKCU registration が Frame Server に不十分 | 直接 activation は成功、Start は失敗 | HKLM one-time install 後の比較 |
-| B | required COM interface 不足 | 直接 QI matrix を拡張中 | Frame Server の requested IID log |
-| C | Media Foundation source/stream contract 不足 | descriptor/allocator の差分あり | contract test と lifecycle log |
+| B | required COM interface 不足 | source/stream のrequired QIを修正し、Frame Serverログで成功 | optional QI以外は解消 |
+| C | Media Foundation source/stream contract 不足 | descriptor attributes testは成功、allocator/lifecycle差分は残る | 管理者配置後のcapture |
 | D | Frame Server context の dependency load 失敗 | 独自 DLL 依存はなし、VC runtime は要確認 | DLL load log と process-specific log |
 
 一度に複数の仮説を修正しません。Synthetic Virtual Camera の列挙・frame取得が
@@ -169,5 +169,36 @@ Release DLL の `dumpbin /DEPENDENTS` は `MFPlat.DLL`、`MFSENSORGROUP.dll`、`
 runtime への依存はありません。`SHELL32.dll` は診断ログのディレクトリ作成に使用する
 Windows標準DLLです。Release VC runtime がない環境でのロード可否は未実機確認です。
 
+### Program Files 配置検証ゲート
+
+次の実機検証では、build directory の DLL を直接登録せず、
+`C:\Program Files\CamBridge\Native\cambridge_media_source.dll` を HKLM の
+`InprocServer32` に登録します。installer は標準の Program Files ACL を継承し、
+Everyone Full Control のような追加ACLは設定しません。DLLとコピー元artifactの
+`Zone.Identifier`、`icacls`、SYSTEM/Local Service の直接ACE有無を出力します。
+
+Local Service/SYSTEMとしての実ファイルopenは、通常ユーザーのこの開発環境では
+実行していません。直接ACEがない場合も、Users等の継承・token groupを含む実効権限の
+証明にはならないため、管理者インストール後のFrame ServerログとStart結果を一次証拠にします。
+
+現行 build DLL の読み取り監査は、`Zone.Identifier: none` で、ACLは SYSTEM と
+Administrators が Full、現在ユーザーが Full、sandbox users が Read/Execute でした。
+Local Service の直接ACEはありません。`C:\Program Files\CamBridge\Native` はまだ
+作成していないため、Program Files版のACL差分とStart結果は未確認です。
+
+installer launcher:
+
+- `Install-CamBridge-Native.cmd`: copy、ACL/MOTW audit、HKLM registration、Start、synthetic capture probe
+- `Uninstall-CamBridge-Native.cmd`: CurrentUser Virtual Camera Remove、HKLM COM removal、exact install directory cleanup
+
 以上により、source contract と registration path の直接問題は修正・検証済みですが、
 CurrentUserの権限境界を越えた実機登録と、capture clientからの実フレーム取得は未完了です。
+
+### Identity property を除外した再試行
+
+`AddProperty` が Start の一次原因かを分離するため、custom identity property を設定しない
+manager経路でも再試行しました。結果は `MFCreateVirtualCamera(CurrentUser): success`、
+`IMFVirtualCamera::Start: 0x80070005 (E_ACCESSDENIED)`、`Video input count: 0` でした。
+したがって、`AddProperty` の `E_ACCESSDENIED` だけが Start の原因ではありません。
+Native MVPの既定install launcherではidentity propertyをスキップし、Program Files配置と
+HKLM registrationを先に検証します。`--identity-properties` は明示診断用に残しています。

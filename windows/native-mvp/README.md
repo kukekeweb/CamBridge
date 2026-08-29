@@ -41,10 +41,23 @@ From the repository root, the reproducible one-time flow is:
 Install-CamBridge-Native.cmd
 ```
 
-Run it as Administrator after building. It registers the machine-wide Media Source,
-verifies the HKLM `InprocServer32` values, attempts virtual-camera Start, and runs the
-capture probe even when an earlier step fails. The reverse operation is
-`Uninstall-CamBridge-Native.cmd` (also elevated when HKLM removal is required).
+Run it as Administrator after building. It copies the Release artifacts to
+`C:\Program Files\CamBridge\Native`, keeps the default Program Files ACL, registers
+the machine-wide Media Source using that installed absolute path, verifies the HKLM
+`InprocServer32` values, attempts virtual-camera Start, audits ACL/MOTW, and runs the
+synthetic publisher plus capture probe even when an earlier step fails. The reverse
+operation is `Uninstall-CamBridge-Native.cmd` (also elevated); it removes the
+CurrentUser virtual camera, HKLM registration, and only the exact CamBridge install
+directory.
+
+The `--machine` manager path remains available for focused diagnostics, but the
+build-directory DLL is not the production registration target. The installed Media
+Source is machine-wide while the virtual camera continues to use
+`MFVirtualCameraAccess_CurrentUser`.
+
+Native MVP installation skips optional custom identity properties by default so
+`AddProperty` permission behavior cannot mask the `IMFVirtualCamera::Start` result.
+Use `--identity-properties` only for an explicit identity-property diagnostic.
 
 The Media Source writes control-path diagnostics to
 `C:\ProgramData\CamBridge\logs\media-source-<pid>.log` when possible. Logs are
