@@ -18,7 +18,9 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: windows-2025
+    # Keep the native CMake/Visual Studio generator on the stable runner image.
+    # Live Frame Server and camera enumeration remain host-only acceptance tests.
+    runs-on: windows-2022
     timeout-minutes: 20
 
     steps:
