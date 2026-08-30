@@ -19,10 +19,11 @@ Source DLL, registration manager, and a Media Foundation capture probe. The
 dependency-free receiver/session core, the opt-in libdatachannel adapter, H.264
 RTP depacketizer fixtures, and the Media Foundation H.264-to-NV12 decoder
 boundary are also present. Receiver-to-decoder-to-IPC wiring is covered by a
-fixture, and the receiver probe reports peer/ICE state plus H.264 presence in
-the remote offer and local answer. Live Safari WebRTC reception, hardware-path
-confirmation, sustained decoding, and integrated network-to-Virtual-Camera
-output remain open and must not be inferred from the unit or fixture tests.
+fixture and a native RTP loopback; the receiver probe reports peer/ICE state,
+H.264 offer/answer presence, and access-unit/pipeline metrics. Live Safari
+WebRTC reception, hardware-path confirmation, sustained decoding, and
+integrated network-to-Virtual-Camera output remain open and must not be
+inferred from the unit or fixture tests.
 
 The dependency-free `receiver/receiver_session.*` core now provides the first
 native receiver boundary: one-session lifecycle, Safari Offer validation for a
@@ -33,8 +34,9 @@ recv-only H.264 track setup, validated Offer application, Answer callback, and
 H.264 RTP depacketizer wiring. It deliberately does not claim Safari ICE/DTLS/
 SRTP interoperability, received H.264 access units, decoding, or IPC output.
 The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
-`hello`/`offer`/`answer`/`ice` boundary; they are tested without a live Safari
-peer and do not yet constitute an interoperability result.
+`hello`/`offer`/`answer`/`ice` boundary. The server and native receiver have
+also been checked through a local WSS startup/waiting run, but this is not a
+live Safari interoperability result.
 
 The opt-in `cambridge_native_receiver.exe` is a bounded native receiver probe
 around that wrapper. It accepts the WSS URL and the CamBridge Local CA; by

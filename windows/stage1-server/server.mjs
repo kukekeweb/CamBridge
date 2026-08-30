@@ -256,7 +256,7 @@ async function main() {
     console.log(`.local hostname: ${friendlyHost ?? "unavailable"}`);
     console.log(`Friendly URL: ${friendlyHost ? `https://${friendlyHost}:${options.port}` : "unavailable"}`);
     console.log(`WSS signaling: wss://${bind}:${options.port}/signaling`);
-    console.log("Stage 1 camera probe remains enabled; WebRTC media transport is not yet connected");
+    console.log("Stage 1 camera probe enabled; WSS signaling ready for the native receiver probe");
   });
 
   const shutdown = () => {

@@ -12,7 +12,7 @@
       <header>
         <p class="eyebrow">LANカメラ対応状況プローブ</p>
         <h1>CamBridge</h1>
-        <p class="lede">Safariのカメラ取得とStage 1診断を行います。WebRTC接続はStage 2の接続Probeとして任意に実行できます。</p>
+        <p class="lede">Safariのカメラ取得とStage 1診断を行います。準備済みのWindows native receiverへ、同一LANのWebRTC接続Probeも実行できます。</p>
       </header>
 
       <section class="card controls" aria-labelledby="settings-heading">
@@ -78,7 +78,7 @@
 
       <section class="card webrtc-card" aria-labelledby="webrtc-heading">
         <h2 id="webrtc-heading">WebRTC接続（Stage 2 Probe）</h2>
-        <p class="muted">現在の1920×1080 / 60fps実カメラTrackを、同一originのWSSへH.264優先で接続します。Windows受信・デコード・Virtual Cameraはまだ実装していません。</p>
+        <p class="muted">現在の1920×1080 / 60fps実カメラTrackを、同一originのWSSへH.264優先で接続します。Windows側は別プロセスのnative receiver probeで受信・デコード・既存IPC公開を行います。実機接続の合否はログで確認してください。</p>
         <dl>
           <div><dt>Signaling URL</dt><dd id="webrtc-url">—</dd></div>
           <div><dt>Session ID</dt><dd id="webrtc-session-id">—</dd></div>

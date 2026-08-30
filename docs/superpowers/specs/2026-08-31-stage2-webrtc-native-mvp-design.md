@@ -212,9 +212,11 @@ Implementation status at this revision:
   H.264 fixture. The test covers single-NAL and FU-A RTP packetization,
   native libdatachannel receive, NV12 decode, and latest-frame IPC readback.
   It is not Safari interoperability or a sustained live 60fps result.
-- Safari ICE/DTLS/SRTP and H.264 RTP receive: not started.
-- Receiver-to-IPC live network path and integrated network path: not started;
-  the fixture-only pipeline boundary is passing as noted above.
+- Safari ICE/DTLS/SRTP and H.264 RTP receive: not yet verified on a live Safari
+  device. The native receiver and same-origin WSS path are implemented.
+- Receiver-to-IPC live network path and integrated network path: not yet
+  verified; the fixture and native loopback boundaries are passing as noted
+  above.
 
 Acceptance for this Stage 2 design's implementation is not claimed until:
 

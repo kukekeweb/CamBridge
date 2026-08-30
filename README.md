@@ -5,12 +5,14 @@ Safari Web Client; the existing Swift/SwiftUI/AVFoundation implementation in
 [`ios/`](ios/) is retained as a legacy/reference implementation and is not
 deleted.
 
-## Current scope: Web Stage 0 + Stage 1
+## Current scope: Web Stage 0/1 + Native WebRTC probe
 
 Stage 1 serves a camera capability probe from the Windows PC over local HTTPS.
-It does not send video to Windows yet. WebRTC media sending, WSS signaling,
-Windows receiving/decoding, D3D11 rendering, and Virtual Camera output are
-reserved for later stages.
+The same server exposes a bounded same-origin WSS signaling endpoint. An
+opt-in Windows native receiver covers the libdatachannel receive,
+H.264-to-NV12 decoder, and existing shared-memory publication boundaries.
+Offline loopback and fixture tests pass, but live Safari RTP reception and
+network-to-Virtual-Camera acceptance remain open.
 
 The required test URL is the private-LAN IPv4 URL printed by the server:
 

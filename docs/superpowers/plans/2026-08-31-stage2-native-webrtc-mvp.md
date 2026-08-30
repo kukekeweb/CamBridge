@@ -41,7 +41,8 @@ deterministic tests. The broker has unit coverage for initial auto pairing and
 reuse after browser disconnect.
 
 The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
-and FU-A packets. Real Safari RTP arrival remains a separate interop gate.
+and FU-A packets. A local WSS startup run reaches the native waiting state;
+real Safari RTP arrival remains a separate interop gate.
 
 ## Phase 3: Safari H.264 interop probe
 
@@ -65,8 +66,9 @@ and FU-A packets. Real Safari RTP arrival remains a separate interop gate.
 
 Status: the Media Foundation H.264-to-NV12 decoder boundary and bounded fixture
 probe are implemented. The host selected transform and output metadata are
-reported, and the valid yuv420p fixture produces NV12 frames. Live WebRTC input,
-hardware-path proof, and sustained 60fps decode remain open.
+reported, and the valid yuv420p fixture produces NV12 frames. The native
+receiver is wired to this boundary, but live WebRTC input, hardware-path proof,
+and sustained 60fps decode remain open.
 
 ## Phase 5: latest-frame publication
 
