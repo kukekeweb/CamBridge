@@ -30,24 +30,33 @@ Fixture generated outside the repository with FFmpeg:
 C:\Users\kukeke\AppData\Local\Temp\CamBridge-pipeline-loopback-1080p60.h264
 ```
 
-The fixture contains 60 frames at 1920x1080 and is passed only through the
-`CAMBRIDGE_H264_FIXTURE` environment variable. The test is skipped when the
+The fixture used for the bounded run contains 120 frames at 1920x1080 and is
+passed only through the `CAMBRIDGE_H264_FIXTURE` environment variable. The
+Annex-B stream includes Access Unit Delimiters because the loopback fixture
+splitter uses them to separate access units. The test is skipped when the
 variable is unset, so CI does not depend on a repository or downloaded media
 artifact.
 
 Commands:
 
 ```powershell
+ffmpeg -hide_banner -loglevel error -y `
+  -f lavfi -i 'testsrc2=size=1920x1080:rate=60' -frames:v 120 `
+  -c:v libx264 -preset ultrafast -tune zerolatency -pix_fmt yuv420p `
+  -bsf:v h264_metadata=aud=insert -f h264 `
+  'C:\Users\kukeke\AppData\Local\Temp\CamBridge-pipeline-loopback-1080p60.h264'
 $env:CAMBRIDGE_H264_FIXTURE = 'C:\Users\kukeke\AppData\Local\Temp\CamBridge-pipeline-loopback-1080p60.h264'
 ctest --test-dir build/native-mvp-libdatachannel -C Debug --output-on-failure
 ctest --test-dir build/native-mvp-libdatachannel -C Release --output-on-failure
+Remove-Item -LiteralPath 'C:\Users\kukeke\AppData\Local\Temp\CamBridge-pipeline-loopback-1080p60.h264' -Force
 Remove-Item Env:CAMBRIDGE_H264_FIXTURE
 ```
 
 Result on this Windows host:
 
-- Debug: 16/16 tests passed
-- Release: 16/16 tests passed
+- Debug: 16/16 tests passed in the documented validation run
+- Release: 16/16 tests passed in the documented validation run
+- Current Release rerun: 16/16 tests passed
 - Pipeline loopback: passed
 - Published frame readback: NV12, 1920x1080, valid stride and byte count
 - Receiver selected local/remote candidate pair: both private-LAN address
