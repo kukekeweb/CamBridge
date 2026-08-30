@@ -13,6 +13,7 @@ class FakeWebSocket {
   }
 
   send(message) {
+    if (this.readyState !== 1) throw new Error("WebSocket is not open");
     this.sent.push(JSON.parse(message));
   }
 
@@ -148,4 +149,22 @@ test("rejects a capture track that is not the exact Stage 2 target", async () =>
     track: { readyState: "live", getSettings: () => ({ width: 1920, height: 1080, frameRate: 30 }) },
   });
   await assert.rejects(sender.connect(), /1920×1080.*60/);
+});
+
+test("queues ICE candidates emitted before the signaling socket opens", async () => {
+  const sender = makeSender();
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  const peer = FakePeerConnection.instances[0];
+
+  peer.onicecandidate({ candidate: { candidate: "candidate:early", sdpMid: "0" } });
+  assert.equal(socket.sent.length, 0);
+
+  socket.open();
+  await connectPromise;
+  assert.equal(socket.sent[0].type, "hello");
+  assert.equal(socket.sent[1].type, "offer");
+  assert.equal(socket.sent[2].type, "ice");
+  assert.equal(socket.sent[2].candidate.candidate, "candidate:early");
+  sender.close();
 });

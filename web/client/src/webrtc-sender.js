@@ -54,6 +54,7 @@ export class WebRtcSender {
     this.websocket = null;
     this.peerConnection = null;
     this.transceiver = null;
+    this.pendingIceCandidates = [];
     this.state = "idle";
   }
 
@@ -63,7 +64,7 @@ export class WebRtcSender {
   }
 
   send(message) {
-    if (!this.websocket || this.websocket.readyState === 3) {
+    if (!this.websocket || this.websocket.readyState !== 1) {
       throw new Error(TEXT.webrtcSocketClosed);
     }
     this.websocket.send(JSON.stringify({ version: 1, ...message }));
@@ -84,6 +85,7 @@ export class WebRtcSender {
     }
 
     this.emitStatus("connecting");
+    this.pendingIceCandidates = [];
     try {
       this.peerConnection = this.peerConnectionFactory({
         iceServers: [],
@@ -98,8 +100,13 @@ export class WebRtcSender {
         const candidate = event.candidate
           ? (typeof event.candidate.toJSON === "function" ? event.candidate.toJSON() : event.candidate)
           : null;
+        const message = { type: "ice", sessionId: this.sessionId, candidate };
+        if (!this.websocket || this.websocket.readyState !== 1) {
+          this.pendingIceCandidates.push(message);
+          return;
+        }
         try {
-          this.send({ type: "ice", sessionId: this.sessionId, candidate });
+          this.send(message);
         } catch (error) {
           this.fail(error);
         }
@@ -137,6 +144,8 @@ export class WebRtcSender {
               sessionId: this.sessionId,
               sdp: this.peerConnection.localDescription?.sdp ?? offer.sdp,
             });
+            const pendingIce = this.pendingIceCandidates.splice(0);
+            for (const candidate of pendingIce) this.send(candidate);
             this.emitStatus("offered");
             resolveOnce();
           } catch (error) {
@@ -193,6 +202,7 @@ export class WebRtcSender {
     this.peerConnection = null;
     this.transceiver = null;
     this.websocket = null;
+    this.pendingIceCandidates = [];
     this.emitStatus("closed");
   }
 }
