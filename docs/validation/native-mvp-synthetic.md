@@ -282,6 +282,20 @@ Video input count: 0
 
 ## Scope status
 
+### Current dependency preflight (2026-08-31)
+
+The repository `vcpkg.json` manifest and its pinned baseline were installed on
+the current Windows host with the Visual Studio 2022 bundled vcpkg executable:
+
+```text
+vcpkg version: 2025-11-19-da1f056dc0775ac651bea7e3fbbf4066146a55f3
+libdatachannel[core,srtp,ws]:x64-windows@0.24.5: installed
+All requested installations completed successfully in: 4.4 min
+```
+
+This is a dependency preflight only. It does not replace the Windows GitHub
+Actions build or the live Frame Server/Virtual Camera acceptance.
+
 > Historical note: the initial sections below preserve the earlier pre-restart
 > and pre-gate observations. The current authoritative result is the bounded
 > PASS recorded in
