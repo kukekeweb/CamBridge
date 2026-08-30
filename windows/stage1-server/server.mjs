@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stderr as output } from "node:process";
 import { X509Certificate } from "node:crypto";
+import { attachSignalingWebSocket } from "./signaling-wss.mjs";
 
 const SERVER_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_WEB_ROOT = path.resolve(SERVER_DIRECTORY, "../../web/client");
@@ -194,6 +195,18 @@ async function serveFile(request, response, webRoot) {
   }
 }
 
+function createStage1HttpsServer({ pfx, passphrase, webRoot }) {
+  const server = createServer({ pfx, passphrase }, (request, response) => {
+    serveFile(request, response, webRoot).catch((error) => {
+      response.writeHead(500);
+      response.end("Internal server error");
+      console.error(`Request error: ${error.message}`);
+    });
+  });
+  const signaling = attachSignalingWebSocket(server, { path: "/signaling" });
+  return { server, signaling };
+}
+
 async function main() {
   const options = parseArguments(process.argv.slice(2));
   if (options.help) {
@@ -222,12 +235,10 @@ async function main() {
   }
 
   const pfxPassword = await promptForPfxPassword();
-  const server = createServer({ pfx: readFileSync(options.pfx), passphrase: pfxPassword }, (request, response) => {
-    serveFile(request, response, options.webRoot).catch((error) => {
-      response.writeHead(500);
-      response.end("Internal server error");
-      console.error(`Request error: ${error.message}`);
-    });
+  const { server, signaling } = createStage1HttpsServer({
+    pfx: readFileSync(options.pfx),
+    passphrase: pfxPassword,
+    webRoot: options.webRoot,
   });
   const mdns = await startMdns(options.port, options.mdns);
   const localHost = await resolveLocalHostname();
@@ -244,11 +255,13 @@ async function main() {
     console.log(`Bonjour service: ${mdns.status.startsWith("available") ? `${SERVICE_NAME}.${SERVICE_TYPE}` : "unavailable"}`);
     console.log(`.local hostname: ${friendlyHost ?? "unavailable"}`);
     console.log(`Friendly URL: ${friendlyHost ? `https://${friendlyHost}:${options.port}` : "unavailable"}`);
-    console.log("Stage 1: no WebRTC media transport is enabled");
+    console.log(`WSS signaling: wss://${bind}:${options.port}/signaling`);
+    console.log("Stage 1 camera probe remains enabled; WebRTC media transport is not yet connected");
   });
 
   const shutdown = () => {
     mdns.child?.kill();
+    signaling.close();
     server.close(() => process.exit(0));
   };
   process.once("SIGINT", shutdown);

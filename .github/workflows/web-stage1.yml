@@ -36,6 +36,18 @@ jobs:
       - name: Check HTTPS server JavaScript syntax
         run: node --check windows/stage1-server/server.mjs
 
+      - name: Install Stage 1 server dependencies
+        working-directory: windows/stage1-server
+        run: npm ci
+
+      - name: Run Stage 1 server signaling tests
+        working-directory: windows/stage1-server
+        run: npm test
+
+      - name: Check Stage 1 server JavaScript syntax
+        working-directory: windows/stage1-server
+        run: npm run check
+
       - name: Validate Stage 1 contract
         shell: pwsh
         run: ./scripts/validate-web-stage1.ps1

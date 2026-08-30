@@ -1,8 +1,10 @@
 # CamBridge Windows Stage 1 HTTPS server
 
 The server serves `web/client/` over HTTPS on a detected private LAN IPv4
-address. The printed IP URL is the Stage 1 acceptance route. It does not
-implement WebRTC, signaling, decoding, or Virtual Camera output.
+address. The printed IP URL is the Stage 1 acceptance route. The server also
+exposes a same-origin WSS signaling endpoint at `/signaling`; it only relays
+bounded JSON Offer/Answer/ICE control messages and does not carry video. The
+native WebRTC receiver and media transport are not connected yet.
 
 ## First-time certificate setup
 
@@ -30,6 +32,7 @@ Omit the environment variable and enter the PFX password at the server's
 interactive prompt. The value is not logged or stored by the server:
 
 ```powershell
+npm ci --prefix .\windows\stage1-server
 node .\windows\stage1-server\server.mjs `
   --pfx .\windows\stage1-server\certificates\cambridge-server.pfx `
   --certificate .\windows\stage1-server\certificates\cambridge-server.cer
@@ -40,6 +43,12 @@ mDNS/Bonjour status, Windows host `.local` status, and friendly URL status.
 It does not change Windows Firewall policy. If Windows asks whether the
 private-network connection should be allowed, review and allow only the
 private LAN profile if appropriate.
+
+The same HTTPS listener accepts WSS at `wss://<bind-ip>:<port>/signaling`.
+Clients must send `hello` with role `browser` or `native` and a shared session
+ID before sending `offer`, `answer`, `ice`, or `close`. The current endpoint
+relays only bounded JSON control messages; media still does not pass through
+this server.
 
 ## Name resolution policy
 
