@@ -312,3 +312,29 @@ Video input count: 0
 - Discord acceptance
 
 従って、Native MVPおよびStage 2合格とは判定しない。
+
+## Current authoritative bounded gate result
+
+The historical failure sections above preserve the earlier pre-restart and
+pre-current-artifact observations. The current authoritative installed-artifact
+result is the bounded repeat recorded on 2026-08-31 04:33 JST:
+
+```text
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+Residual synthetic publisher processes: 0
+```
+
+The corresponding capture child diagnostic is
+`C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-27024-41186640.log`.
+The initial stream tick is an expected SourceReader notification; it is not a
+CamBridge-queued `MEStreamTick` and did not prevent subsequent sample delivery.
+This gate proves Synthetic Publisher/IPC → Media Source/Frame Server →
+Virtual Camera → SourceReader for NV12 1920x1080@60. It does not prove Safari
+WebRTC interoperability, hardware decode, or Discord acceptance.

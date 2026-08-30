@@ -147,3 +147,28 @@ reproduces the native synthetic gate with the current installed artifact.
 
 The first `STREAMTICK` is therefore treated as an expected initial SourceReader
 notification, not as a sample-delivery failure. The current gate remains PASS.
+
+## Bounded repeat from the installed artifact (2026-08-31 04:33 JST)
+
+As a final bounded regression check, the installed Publisher and capture probe
+were run once more without changing the Media Source, installer, or Frame
+Server configuration. The Publisher was started as PID `25972`; the capture
+child diagnostic was written to
+`C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-27024-41186640.log`.
+
+The probe reported:
+
+```text
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+Samples received: 120
+IMFMediaSource::Shutdown: 0x0 (S_OK)
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+The Publisher exited normally during cleanup and a post-run process check
+reported zero residual `cambridge_synthetic_publisher` processes. This is a
+repeat of the existing synthetic gate, not a WebRTC or iPhone-camera result.
