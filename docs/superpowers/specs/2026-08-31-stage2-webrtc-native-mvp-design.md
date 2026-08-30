@@ -5,8 +5,8 @@
 This document starts only after the synthetic native gate passed: the current
 Media Source loaded by the restarted Frame Server delivered 120 NV12 samples to
 a Media Foundation capture client. That gate is now a regression baseline. The
-first native decoder boundary is also present and has a fixture-level probe, but
-live Safari media reception and receiver-to-IPC wiring remain open.
+first native decoder boundary and receiver-to-IPC fixture wiring are also
+present, but live Safari media reception remains open.
 
 The first network milestone is:
 
@@ -91,7 +91,9 @@ The protocol is one session with one iPhone and one Windows receiver:
 3. Browser sends the SDP Offer.
 4. Native receiver validates the session and returns an SDP Answer with the
    video direction accepted as `recvonly`.
-5. Both sides exchange trickled ICE candidates.
+5. The native receiver explicitly starts local ICE gathering after creating the
+   Answer because the initial configuration disables automatic gathering; both
+   sides then exchange trickled ICE candidates.
 6. Both sides report state changes and the selected codec for diagnostics.
 7. Close, timeout, or network loss moves the session to disconnected and permits
    a fresh session without reusing stale SDP/ICE state.
@@ -188,7 +190,7 @@ Implementation status at this revision:
 - Gate 1 signaling loopback: PASS.
 - Gate 2 receiver state/SDP policy core: PASS.
 - Gate 2 libdatachannel opt-in API/SDP wiring: PASS with v0.24.5 package;
-  Answer callback is observed in a local test.
+  Answer callback and local host-candidate callback are observed in local tests.
 - Gate 4 decoder boundary: the Media Foundation H.264-to-NV12 adapter builds,
   starts on this host, records the selected transform, and produces NV12 frames
   from a valid yuv420p Annex-B fixture. This is a decoder contract/fixture

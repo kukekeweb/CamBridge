@@ -61,11 +61,37 @@ void TestOfferReachesPeerConnection() {
   receiver.Close();
   assert(receiver.state() != ReceiverState::Connected);
 }
+
+void TestOfferProducesLocalHostCandidate() {
+  LibDataChannelReceiver receiver({"session-candidates", "127.0.0.1", 5000});
+  std::mutex mutex;
+  std::condition_variable condition;
+  std::size_t candidateCount = 0;
+  receiver.SetLocalCandidateHandler([&](const std::string& candidate,
+                                        const std::string& mid) {
+    assert(!candidate.empty());
+    assert(!mid.empty());
+    {
+      std::lock_guard lock(mutex);
+      ++candidateCount;
+    }
+    condition.notify_one();
+  });
+
+  assert(receiver.Start());
+  assert(receiver.AcceptOffer("session-candidates", kOffer));
+  {
+    std::unique_lock lock(mutex);
+    assert(condition.wait_for(lock, std::chrono::seconds(1),
+                              [&] { return candidateCount > 0; }));
+  }
+}
 }  // namespace
 
 int main() {
   TestStartAndValidation();
   TestOfferReachesPeerConnection();
+  TestOfferProducesLocalHostCandidate();
   std::cout << "CamBridge libdatachannel receiver tests passed\n";
   return 0;
 }

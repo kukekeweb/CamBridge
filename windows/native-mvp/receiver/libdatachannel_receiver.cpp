@@ -177,6 +177,7 @@ bool LibDataChannelReceiver::AcceptOffer(const std::string& sessionId,
     impl_->peerConnection->setRemoteDescription(
         rtc::Description(sdp, rtc::Description::Type::Offer));
     impl_->peerConnection->setLocalDescription();
+    impl_->peerConnection->gatherLocalCandidates();
     remoteOfferHasH264_.store(session_.offer().hasH264, std::memory_order_relaxed);
   } catch (const std::exception& error) {
     return Fail(error.what());

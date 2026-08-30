@@ -28,10 +28,22 @@ reception, sustained decoding, or Virtual Camera output from network frames.
   counters, and whether H.264 is present in the remote offer and local answer.
   These are diagnostic observations only; they do not prove a live Safari path.
 
+## ICE gathering correction
+
+The receiver uses `disableAutoGathering=true` so that the application controls
+when local candidates are emitted. Before this correction, `AcceptOffer()` set
+the remote description and local Answer but never started local ICE gathering;
+the local candidate callback therefore did not fire in a native probe. The
+smallest fix is an explicit `gatherLocalCandidates()` immediately after the
+Answer is created. A test-first regression now observes a non-empty candidate
+callback with the configured LAN bind path. This does not claim a completed
+Safari connection; it only proves that the native side can produce candidates
+for the existing WSS signaling boundary.
+
 ## Test evidence
 
 With the repository `vcpkg.json` manifest and the vcpkg baseline recorded there,
-the opt-in CMake Debug build compiled and all 14 registered CTest tests passed,
+the opt-in CMake Debug build compiled and all 15 registered CTest tests passed,
 including:
 
 - `cambridge_libdatachannel_receiver_tests`
@@ -39,14 +51,20 @@ including:
 - `cambridge_native_signaling_session_tests`
 - `cambridge_native_signaling_websocket_tests`
 - `cambridge_h264_depacketizer_tests`
+- `cambridge_libdatachannel_loopback_tests`
 
-The receiver test observes a generated SDP Answer containing H.264 and verifies
-the remote/local H.264 diagnostic flags. The WebSocket test verifies that missing
-CA trust is rejected before any socket is opened. The depacketizer test checks
+The receiver test observes a generated SDP Answer containing H.264, verifies
+the remote/local H.264 diagnostic flags, and verifies that an Offer causes a
+non-empty local host-candidate callback. The WebSocket test verifies that
+missing CA trust is rejected before any socket is opened. The depacketizer test checks
 the current libdatachannel contract, where the reconstructed message is returned
 through the message vector. The fixture pipeline test reads back published NV12
-from a separate IPC mapping. These are local API/contract tests, not a network
-or device result.
+from a separate IPC mapping. The loopback test uses two native libdatachannel
+peers on a detected private IPv4 interface, exchanges Offer/Answer and host
+candidates without STUN/TURN, reaches the connected state, sends one synthetic
+H.264 RTP single-NAL packet, and observes one non-empty access unit at the
+receiver `onFrame` callback. These are local API/contract tests, not Safari
+interoperation or a device result.
 
 ## Next gate
 

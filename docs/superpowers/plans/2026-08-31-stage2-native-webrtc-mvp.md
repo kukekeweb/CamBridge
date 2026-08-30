@@ -28,8 +28,10 @@ Status: receiver state/SDP policy core is complete. The opt-in libdatachannel
 adapter compiles against the pinned vcpkg manifest and produces an Answer in its
 local test; the NativeSignalingSession, WSS transport wrapper, and
 `cambridge_native_receiver.exe` probe now bind the same local JSON contract.
-The CLI probe prints native receiver state and H.264 access-unit metrics, but it
-has not yet opened a live Safari session.
+The receiver explicitly invokes `gatherLocalCandidates()` after setting its
+Answer because automatic gathering is disabled. A local test now observes a
+non-empty host-candidate callback. The CLI probe prints native receiver state
+and H.264 access-unit metrics, but it has not yet opened a live Safari session.
 
 The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
 and FU-A packets. Real Safari RTP arrival remains a separate interop gate.
