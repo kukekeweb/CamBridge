@@ -34,6 +34,7 @@ import {
   formatStabilitySeconds,
   formatStabilityStatus,
   formatWebRtcStatus,
+  formatWebRtcStats,
   TEXT,
 } from "./i18n.js";
 import {
@@ -74,6 +75,10 @@ function renderWebRtcStatus(status) {
       : "status";
 }
 
+function renderWebRtcStats(stats) {
+  $("webrtc-stats").textContent = formatWebRtcStats(stats);
+}
+
 function signalingUrl() {
   if (globalThis.location?.protocol !== "https:") return null;
   return `wss://${globalThis.location.host}/signaling`;
@@ -84,6 +89,7 @@ function closeWebRtcSender() {
   webRtcSender = null;
   $("connect-webrtc-button").disabled = !controller.track;
   $("disconnect-webrtc-button").disabled = true;
+  renderWebRtcStats({ available: false });
 }
 
 function renderRequested(settings) {
@@ -413,6 +419,7 @@ $("connect-webrtc-button").addEventListener("click", async () => {
     track: controller.track,
     stream: controller.stream,
     onStatus: renderWebRtcStatus,
+    onStats: renderWebRtcStats,
   });
   $("connect-webrtc-button").disabled = true;
   $("disconnect-webrtc-button").disabled = false;

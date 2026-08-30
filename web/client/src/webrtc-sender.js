@@ -25,6 +25,84 @@ function exactTarget(track) {
   );
 }
 
+function iterableStats(report) {
+  if (report === null || report === undefined) return [];
+  const entries = [];
+  if (typeof report.forEach === "function") {
+    report.forEach((value, key) => entries.push([key, value]));
+    return entries;
+  }
+  if (typeof report[Symbol.iterator] === "function") {
+    for (const entry of report) {
+      if (Array.isArray(entry) && entry.length >= 2) entries.push([entry[0], entry[1]]);
+    }
+    return entries;
+  }
+  return Object.entries(report);
+}
+
+function finiteOrNull(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function summarizeWebRtcStats(report) {
+  const unavailable = {
+    available: false,
+    codec: null,
+    framesPerSecond: null,
+    framesEncoded: null,
+    framesDropped: null,
+    bytesSent: null,
+    packetsSent: null,
+    packetsLost: null,
+    packetLossPercent: null,
+    roundTripTimeMs: null,
+    jitterMs: null,
+    timestamp: null,
+  };
+  const entries = iterableStats(report);
+  const byId = new Map(entries.map(([key, value]) => [value?.id ?? key, value]));
+  const outbound = entries
+    .map(([, value]) => value)
+    .find((value) => value?.type === "outbound-rtp" &&
+      (value.kind === "video" || value.mediaType === "video"));
+  if (!outbound) return unavailable;
+
+  const remoteInbound = entries
+    .map(([, value]) => value)
+    .find((value) => value?.type === "remote-inbound-rtp" &&
+      (value.kind === "video" || value.mediaType === "video"));
+  const codec = outbound.codecId ? byId.get(outbound.codecId) : null;
+  const packetsLost = finiteOrNull(remoteInbound?.packetsLost ?? outbound.packetsLost);
+  const packetsReceived = finiteOrNull(remoteInbound?.packetsReceived);
+  const packetsSent = finiteOrNull(outbound.packetsSent);
+  const packetDenominator = packetsLost !== null && packetsReceived !== null
+    ? packetsLost + packetsReceived
+    : packetsLost !== null && packetsSent !== null
+      ? packetsLost + packetsSent
+      : null;
+  return {
+    available: true,
+    codec: typeof codec?.mimeType === "string" ? codec.mimeType : null,
+    framesPerSecond: finiteOrNull(outbound.framesPerSecond),
+    framesEncoded: finiteOrNull(outbound.framesEncoded),
+    framesDropped: finiteOrNull(outbound.framesDropped),
+    bytesSent: finiteOrNull(outbound.bytesSent),
+    packetsSent,
+    packetsLost,
+    packetLossPercent: packetDenominator && packetDenominator > 0
+      ? (packetsLost / packetDenominator) * 100
+      : null,
+    roundTripTimeMs: finiteOrNull(remoteInbound?.roundTripTime) === null
+      ? null
+      : remoteInbound.roundTripTime * 1000,
+    jitterMs: finiteOrNull(remoteInbound?.jitter) === null
+      ? null
+      : remoteInbound.jitter * 1000,
+    timestamp: finiteOrNull(outbound.timestamp),
+  };
+}
+
 function defaultSignalingUrl() {
   if (globalThis.location?.protocol !== "https:") {
     throw new Error(TEXT.webrtcRequiresHttps);
@@ -42,6 +120,8 @@ export class WebRtcSender {
     peerConnectionFactory = (configuration) => new globalThis.RTCPeerConnection(configuration),
     senderCapabilities = undefined,
     onStatus = () => {},
+    onStats = () => {},
+    statsIntervalMs = 1000,
   } = {}) {
     this.signalingUrl = signalingUrl;
     this.sessionId = sessionId;
@@ -51,10 +131,14 @@ export class WebRtcSender {
     this.peerConnectionFactory = peerConnectionFactory;
     this.senderCapabilities = senderCapabilities;
     this.onStatus = onStatus;
+    this.onStats = onStats;
+    this.statsIntervalMs = statsIntervalMs;
     this.websocket = null;
     this.peerConnection = null;
     this.transceiver = null;
     this.pendingIceCandidates = [];
+    this.statsTimer = null;
+    this.previousStats = null;
     this.state = "idle";
   }
 
@@ -159,6 +243,7 @@ export class WebRtcSender {
             if (message.sessionId !== this.sessionId) throw new Error(TEXT.webrtcSessionMismatch);
             if (message.type === "answer") {
               await this.peerConnection.setRemoteDescription({ type: "answer", sdp: message.sdp });
+              this.startStatsPolling();
               return;
             }
             if (message.type === "ice") {
@@ -192,11 +277,48 @@ export class WebRtcSender {
     }
   }
 
+  startStatsPolling() {
+    if (this.statsTimer !== null || typeof this.peerConnection?.getStats !== "function") return;
+    this.collectStats();
+    this.statsTimer = globalThis.setInterval(() => {
+      this.collectStats();
+    }, this.statsIntervalMs);
+  }
+
+  async collectStats() {
+    const peerConnection = this.peerConnection;
+    if (!peerConnection || typeof peerConnection.getStats !== "function") return;
+    try {
+      const summary = summarizeWebRtcStats(await peerConnection.getStats());
+      let bitrateBitsPerSecond = null;
+      if (summary.available && this.previousStats?.available &&
+          summary.bytesSent !== null && this.previousStats.bytesSent !== null &&
+          summary.timestamp !== null && this.previousStats.timestamp !== null &&
+          summary.timestamp > this.previousStats.timestamp) {
+        bitrateBitsPerSecond = (summary.bytesSent - this.previousStats.bytesSent) * 8 *
+          1000 / (summary.timestamp - this.previousStats.timestamp);
+      }
+      this.previousStats = summary;
+      if (this.peerConnection === peerConnection) {
+        this.onStats({ ...summary, bitrateBitsPerSecond });
+      }
+    } catch (error) {
+      if (this.peerConnection === peerConnection) {
+        this.onStats({ ...summarizeWebRtcStats(null), error: errorMessage(error) });
+      }
+    }
+  }
+
   fail(error) {
     this.onStatus(`error: ${errorMessage(error)}`);
   }
 
   close() {
+    if (this.statsTimer !== null) {
+      globalThis.clearInterval(this.statsTimer);
+      this.statsTimer = null;
+    }
+    this.previousStats = null;
     this.peerConnection?.close?.();
     this.websocket?.close?.();
     this.peerConnection = null;

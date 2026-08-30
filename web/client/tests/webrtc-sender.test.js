@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WebRtcSender } from "../src/webrtc-sender.js";
+import { WebRtcSender, summarizeWebRtcStats } from "../src/webrtc-sender.js";
 
 class FakeWebSocket {
   static instances = [];
@@ -167,4 +167,63 @@ test("queues ICE candidates emitted before the signaling socket opens", async ()
   assert.equal(socket.sent[2].type, "ice");
   assert.equal(socket.sent[2].candidate.candidate, "candidate:early");
   sender.close();
+});
+
+test("summarizes outbound video stats and the negotiated codec", () => {
+  const report = new Map([
+    ["outbound-1", {
+      id: "outbound-1",
+      type: "outbound-rtp",
+      kind: "video",
+      codecId: "codec-1",
+      framesPerSecond: 59.8,
+      framesEncoded: 120,
+      bytesSent: 2_000_000,
+      packetsSent: 240,
+      framesDropped: 2,
+      timestamp: 10_000,
+    }],
+    ["codec-1", { id: "codec-1", type: "codec", mimeType: "video/H264" }],
+    ["remote-1", {
+      id: "remote-1",
+      type: "remote-inbound-rtp",
+      kind: "video",
+      packetsLost: 3,
+      packetsReceived: 237,
+      roundTripTime: 0.012,
+      jitter: 0.001,
+    }],
+  ]);
+
+  assert.deepEqual(summarizeWebRtcStats(report), {
+    available: true,
+    codec: "video/H264",
+    framesPerSecond: 59.8,
+    framesEncoded: 120,
+    framesDropped: 2,
+    bytesSent: 2_000_000,
+    packetsSent: 240,
+    packetsLost: 3,
+    packetLossPercent: 1.25,
+    roundTripTimeMs: 12,
+    jitterMs: 1,
+    timestamp: 10_000,
+  });
+});
+
+test("reports unavailable when the runtime does not expose getStats data", () => {
+  assert.deepEqual(summarizeWebRtcStats(null), {
+    available: false,
+    codec: null,
+    framesPerSecond: null,
+    framesEncoded: null,
+    framesDropped: null,
+    bytesSent: null,
+    packetsSent: null,
+    packetsLost: null,
+    packetLossPercent: null,
+    roundTripTimeMs: null,
+    jitterMs: null,
+    timestamp: null,
+  });
 });

@@ -7,6 +7,7 @@ import {
   formatDiagnosticResult,
   formatOutputPlan,
   formatRequestedCapture,
+  formatWebRtcStats,
 } from "../src/i18n.js";
 
 test("user-facing capture request is Japanese while retaining exact values", () => {
@@ -48,4 +49,25 @@ test("codec probe failures remain Japanese while retaining the API name and raw 
     formatCodecProbeError("API unavailable"),
     "対応コーデックAPIを利用できません（RTCRtpSender.getCapabilities）：API unavailable",
   );
+});
+
+test("WebRTC stats formatting exposes measured sender values", () => {
+  const text = formatWebRtcStats({
+    available: true,
+    codec: "video/H264",
+    framesPerSecond: 59.94,
+    framesEncoded: 600,
+    framesDropped: 1,
+    bytesSent: 1_000_000,
+    bitrateBitsPerSecond: 4_000_000,
+    packetsSent: 1200,
+    packetsLost: 2,
+    packetLossPercent: 0.17,
+    roundTripTimeMs: 1.8,
+    jitterMs: 0.4,
+  });
+  assert.match(text, /送信FPS .*59\.94/);
+  assert.match(text, /実際のcodec: video\/H264/);
+  assert.match(text, /bitrate .*4\.00 Mbps/);
+  assert.match(text, /packet loss .*0\.17 %/);
 });

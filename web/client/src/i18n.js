@@ -237,3 +237,32 @@ export function formatWebRtcStatus(status) {
   }
   return TEXT.webrtcIdle;
 }
+
+function formatMetric(value, suffix = "") {
+  return typeof value === "number" && Number.isFinite(value) ? `${value.toFixed(2)}${suffix}` : TEXT.noValue;
+}
+
+export function formatWebRtcStats(stats = {}) {
+  if (stats.error) {
+    return `WebRTC送信統計の取得エラー（RTCPeerConnection.getStats）：${stats.error}`;
+  }
+  if (!stats.available) {
+    return "WebRTC送信統計（RTCPeerConnection.getStats）：未取得";
+  }
+  const bitrate = typeof stats.bitrateBitsPerSecond === "number" && Number.isFinite(stats.bitrateBitsPerSecond)
+    ? `${(stats.bitrateBitsPerSecond / 1_000_000).toFixed(2)} Mbps`
+    : TEXT.noValue;
+  return [
+    "WebRTC送信統計 (RTCPeerConnection.getStats())",
+    `実際のcodec: ${stats.codec || TEXT.noValue}`,
+    `送信FPS (framesPerSecond): ${formatMetric(stats.framesPerSecond, " fps")}`,
+    `エンコード済みフレーム (framesEncoded): ${formatMetric(stats.framesEncoded)}`,
+    `送信側欠落フレーム (framesDropped): ${formatMetric(stats.framesDropped)}`,
+    `bitrate (bytesSent差分): ${bitrate}`,
+    `送信パケット (packetsSent): ${formatMetric(stats.packetsSent)}`,
+    `packet loss (packetsLost): ${formatMetric(stats.packetsLost)}` +
+      ` / ${formatMetric(stats.packetLossPercent, " %")}`,
+    `RTT (roundTripTime): ${formatMetric(stats.roundTripTimeMs, " ms")}`,
+    `jitter: ${formatMetric(stats.jitterMs, " ms")}`,
+  ].join("\n");
+}
