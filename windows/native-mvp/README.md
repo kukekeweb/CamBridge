@@ -30,6 +30,26 @@ The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
 `hello`/`offer`/`answer`/`ice` boundary; they are tested without a live Safari
 peer and do not yet constitute an interoperability result.
 
+The opt-in `cambridge_native_receiver.exe` is a bounded native receiver probe
+around that wrapper. It accepts the WSS URL, the session id shown by the Web
+Client, and the CamBridge Local CA; it prints receiver state, H.264 access-unit
+counts, and RTP timestamps. Start this probe before pressing Connect in Safari
+so the native peer is ready for the browser Offer:
+
+```powershell
+.\cambridge_native_receiver.exe `
+  --url wss://192.168.11.2:8443/signaling `
+  --session-id <id-shown-by-safari> `
+  --ca C:\path\to\CamBridge-Local-CA.pem `
+  --bind-address 192.168.11.2
+```
+
+`--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
+is restricted to an explicit local probe. This executable does not yet decode
+H.264, publish NV12, update the shared-memory frame provider, or change the
+Virtual Camera. A successful build or signaling loopback test must not be
+reported as Safari ICE/DTLS/SRTP or media-receive success.
+
 ## Virtual Camera installation boundary
 
 `cambridge_virtual_camera_manager` deliberately separates source registration from

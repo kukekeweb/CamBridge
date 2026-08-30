@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace cambridge::native::receiver {
 
@@ -16,6 +17,8 @@ struct NativeSignalingWebSocketConfig {
 
 class NativeSignalingWebSocket {
  public:
+  using AccessUnitHandler = NativeSignalingSession::AccessUnitHandler;
+
   explicit NativeSignalingWebSocket(NativeSignalingWebSocketConfig config);
   ~NativeSignalingWebSocket();
 
@@ -24,6 +27,10 @@ class NativeSignalingWebSocket {
 
   bool Start();
   void Close();
+  void SetAccessUnitHandler(AccessUnitHandler handler) {
+    session_->SetAccessUnitHandler(std::move(handler));
+  }
+  LibDataChannelReceiverMetrics metrics() const { return session_->metrics(); }
   const std::string& lastError() const { return lastError_; }
   ReceiverState state() const { return session_->state(); }
 

@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cambridge::native::receiver {
@@ -19,6 +20,7 @@ struct NativeSignalingSessionConfig {
 class NativeSignalingSession {
  public:
   using SendHandler = std::function<void(const std::string& message)>;
+  using AccessUnitHandler = LibDataChannelReceiver::AccessUnitHandler;
 
   explicit NativeSignalingSession(NativeSignalingSessionConfig config);
   ~NativeSignalingSession();
@@ -34,6 +36,9 @@ class NativeSignalingSession {
   ReceiverState state() const;
   const std::string& lastError() const { return lastError_; }
   void SetSendHandler(SendHandler handler) { sendHandler_ = std::move(handler); }
+  void SetAccessUnitHandler(AccessUnitHandler handler) {
+    receiver_->SetAccessUnitHandler(std::move(handler));
+  }
   LibDataChannelReceiverMetrics metrics() const;
 
  private:

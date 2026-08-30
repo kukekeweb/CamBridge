@@ -131,6 +131,12 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   target_link_libraries(cambridge_native_signaling_websocket_tests
     PRIVATE cambridge_libdatachannel_receiver)
 
+  add_executable(cambridge_native_receiver
+    receiver/native_receiver_main.cpp
+  )
+  target_link_libraries(cambridge_native_receiver
+    PRIVATE cambridge_libdatachannel_receiver)
+
   add_executable(cambridge_h264_depacketizer_tests
     tests/h264_depacketizer_tests.cpp
   )
