@@ -100,6 +100,14 @@ target_include_directories(cambridge_h264_decoder PUBLIC include receiver)
 target_compile_features(cambridge_h264_decoder PUBLIC cxx_std_20)
 target_link_libraries(cambridge_h264_decoder PUBLIC cambridge_frame_ipc mf mfplat mfuuid)
 
+add_library(cambridge_receiver_media_pipeline STATIC
+  receiver/receiver_media_pipeline.cpp
+)
+target_include_directories(cambridge_receiver_media_pipeline PUBLIC include receiver)
+target_compile_features(cambridge_receiver_media_pipeline PUBLIC cxx_std_20)
+target_link_libraries(cambridge_receiver_media_pipeline PUBLIC cambridge_h264_decoder
+  cambridge_latest_frame_publisher)
+
 add_executable(cambridge_receiver_session_tests
   tests/receiver_session_tests.cpp
 )
@@ -119,6 +127,12 @@ add_executable(cambridge_h264_decoder_probe
   tests/h264_decoder_probe.cpp
 )
 target_link_libraries(cambridge_h264_decoder_probe PRIVATE cambridge_h264_decoder)
+
+add_executable(cambridge_receiver_media_pipeline_tests
+  tests/receiver_media_pipeline_tests.cpp
+)
+target_include_directories(cambridge_receiver_media_pipeline_tests PRIVATE include receiver)
+target_link_libraries(cambridge_receiver_media_pipeline_tests PRIVATE cambridge_receiver_media_pipeline)
 
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   find_package(LibDataChannel CONFIG REQUIRED)
@@ -184,6 +198,7 @@ add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnosti
 add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)
 add_test(NAME cambridge_latest_frame_publisher_tests COMMAND cambridge_latest_frame_publisher_tests)
 add_test(NAME cambridge_h264_decoder_tests COMMAND cambridge_h264_decoder_tests)
+add_test(NAME cambridge_receiver_media_pipeline_tests COMMAND cambridge_receiver_media_pipeline_tests)
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   add_test(NAME cambridge_libdatachannel_receiver_tests
     COMMAND cambridge_libdatachannel_receiver_tests)
