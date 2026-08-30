@@ -12,6 +12,7 @@ set "DLL=%INSTALL_ROOT%\cambridge_media_source.dll"
 set "DLL_MANIFEST=%INSTALL_ROOT%\cambridge_media_source.active.txt"
 set "LOGDIR=%ROOT%build\native-mvp\diagnostics\install"
 set "CAMBRIDGE_NATIVE_MVP_LOG_DIR=%LOGDIR%"
+set "RUN_TAG=%RANDOM%-%RANDOM%"
 
 if not exist "%BIN%\cambridge_virtual_camera_manager.exe" (
   echo CamBridge native build is missing: %BIN%
@@ -81,19 +82,19 @@ set "AUDIT_EXIT=%ERRORLEVEL%"
 echo.
 echo Synthetic publisher and capture probe:
 set "SYNTHETIC_PID="
+set "SYNTHETIC_PID_FILE=%LOGDIR%\synthetic-publisher.pid"
 set "SYNTHETIC_START_EXIT=2"
 set "IPC_READY_EXIT=2"
+del /q "%SYNTHETIC_PID_FILE%" >nul 2>&1
 if exist "%SYNTHETIC%" (
-  for /f "usebackq delims=" %%P in (`powershell.exe -NoProfile -Command "$p=Start-Process -FilePath '%SYNTHETIC%' -WorkingDirectory '%INSTALL_ROOT%' -RedirectStandardOutput '%LOGDIR%\synthetic-publisher.log' -RedirectStandardError '%LOGDIR%\synthetic-publisher-error.log' -WindowStyle Hidden -PassThru; $p.Id"`) do set "SYNTHETIC_PID=%%P"
-  if defined SYNTHETIC_PID set "SYNTHETIC_START_EXIT=0"
+  echo Starting Synthetic Publisher in background...
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\Start-CamBridge-Synthetic.ps1" -Executable "%SYNTHETIC%" -WorkingDirectory "%INSTALL_ROOT%" -LogDirectory "%LOGDIR%" -PidFile "%SYNTHETIC_PID_FILE%"
+  set "SYNTHETIC_START_EXIT=!ERRORLEVEL!"
+  if exist "%SYNTHETIC_PID_FILE%" set /p SYNTHETIC_PID=<"%SYNTHETIC_PID_FILE%"
   if defined SYNTHETIC_PID if exist "%IPC_PROBE%" (
-    for /l %%N in (1,1,20) do (
-      if not "!IPC_READY_EXIT!"=="0" (
-        "%IPC_PROBE%" 1 >"%LOGDIR%\ipc-readiness.log" 2>&1
-        set "IPC_READY_EXIT=!ERRORLEVEL!"
-        if not "!IPC_READY_EXIT!"=="0" timeout /t 1 /nobreak >nul
-      )
-    )
+    echo Checking shared-memory IPC readiness (bounded to about 10 seconds)...
+    "%IPC_PROBE%" 1 >"%LOGDIR%\ipc-readiness-%RUN_TAG%.log" 2>&1
+    set "IPC_READY_EXIT=!ERRORLEVEL!"
   )
   if not defined SYNTHETIC_PID echo Synthetic publisher did not start.
 ) else (
@@ -110,6 +111,7 @@ if exist "%IPC_PROBE%" (
   set "IPC_PROBE_EXIT=2"
 )
 if exist "%PROBE%" (
+  echo Running bounded capture probe (maximum 10 seconds)...
   "%PROBE%"
   set "PROBE_EXIT=!ERRORLEVEL!"
 ) else (
@@ -117,6 +119,7 @@ if exist "%PROBE%" (
   set "PROBE_EXIT=2"
 )
 if defined SYNTHETIC_PID taskkill /pid %SYNTHETIC_PID% /t /f >nul 2>&1
+del /q "%SYNTHETIC_PID_FILE%" >nul 2>&1
 
 echo.
 echo CamBridge Native Install: %INSTALL_EXIT%
