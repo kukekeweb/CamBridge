@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -98,11 +99,47 @@ void TestFixturePublishesDecodedNv12WhenProvided() {
   pipeline.Stop();
 }
 
+void TestFixtureAcceptsAccessUnitsFromReceiverCallbackThread() {
+  const char* fixturePath = std::getenv("CAMBRIDGE_H264_FIXTURE");
+  if (fixturePath == nullptr || *fixturePath == '\0') return;
+  std::ifstream file(fixturePath, std::ios::binary);
+  assert(file.is_open());
+  const std::vector<char> bytes((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+  const auto units = SplitAnnexB(bytes);
+  assert(!units.empty());
+
+  cambridge::native::ReceiverMediaPipeline pipeline;
+  const auto mapping = UniqueName(L"CallbackMapping");
+  const auto event = UniqueName(L"CallbackEvent");
+  assert(pipeline.Start({{1920, 1080, 60, 1, true}, mapping, event}));
+
+  bool accepted = true;
+  std::thread callbackThread([&] {
+    for (std::size_t index = 0; index < units.size(); ++index) {
+      if (!pipeline.SubmitAccessUnit(
+              units[index], static_cast<std::uint32_t>(index * 1500))) {
+        accepted = false;
+        break;
+      }
+    }
+  });
+  callbackThread.join();
+
+  assert(accepted);
+  const auto metrics = pipeline.metrics();
+  assert(metrics.inputAccessUnits > 0);
+  assert(metrics.decodedFrames > 0);
+  assert(metrics.publishedFrames == metrics.decodedFrames);
+  pipeline.Stop();
+}
+
 }  // namespace
 
 int main() {
   TestRejectsInputBeforeStart();
   TestStartStopOwnsDecoderAndPublisherLifecycle();
   TestFixturePublishesDecodedNv12WhenProvided();
+  TestFixtureAcceptsAccessUnitsFromReceiverCallbackThread();
   return 0;
 }
