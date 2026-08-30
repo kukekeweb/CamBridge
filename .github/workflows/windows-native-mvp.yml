@@ -32,7 +32,7 @@ jobs:
       - name: Install pinned native dependencies
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE/scripts/ci/install-native-dependencies.ps1" `
+          & .\scripts\ci\install-native-dependencies.ps1 `
             -LogPath (Join-Path $env:RUNNER_TEMP 'cambridge-vcpkg-install.log')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
