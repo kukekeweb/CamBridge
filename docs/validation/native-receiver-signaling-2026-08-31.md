@@ -2,10 +2,10 @@
 
 ## Scope
 
-This validation covers only the first native WebRTC control boundary after the
-synthetic Virtual Camera gate. It does not claim Safari interoperation, ICE,
-DTLS, SRTP, H.264 RTP reception, decoding, IPC publication, or Virtual Camera
-output changes.
+This validation covers the native WebRTC control boundary and the subsequent
+fixture-level decoder/publisher wiring after the synthetic Virtual Camera gate.
+It does not claim Safari interoperation, ICE, DTLS, SRTP, live H.264 RTP
+reception, sustained decoding, or Virtual Camera output from network frames.
 
 ## Implemented layers
 
@@ -20,6 +20,10 @@ output changes.
 - `NativeSignalingWebSocket` uses libdatachannel's WSS client with a local CA
   certificate by default. TLS verification can be bypassed only by an explicit
   local-probe option; it is not the default.
+- `ReceiverMediaPipeline` accepts a depacketized H.264 access unit, invokes the
+  Media Foundation H.264-to-NV12 decoder boundary, and publishes decoded frames
+  through the existing latest-frame IPC contract. The native receiver CLI wires
+  this path by default and retains `--no-publish` for control-only diagnostics.
 
 ## Test evidence
 
@@ -33,11 +37,12 @@ the opt-in CMake build compiled and passed:
 
 The session test observes a generated SDP Answer containing a video m-line and
 the WebSocket test verifies that missing CA trust is rejected before any socket
-is opened. These are local API/contract tests, not a network or device result.
+is opened. The fixture pipeline test reads back published NV12 from a separate
+IPC mapping. These are local API/contract tests, not a network or device result.
 
 ## Next gate
 
 The next implementation gate is a real same-LAN Safari H.264 interop probe. It
 must use the Stage 1 Web Client, the existing HTTPS/WSS server, a private IPv4
 host candidate, and a real selected codec/DTLS/SRTP/RTP evidence log. Until that
-gate passes, no decoder or receiver-to-IPC integration is claimed.
+gate passes, no live decode rate or end-to-end Virtual Camera result is claimed.

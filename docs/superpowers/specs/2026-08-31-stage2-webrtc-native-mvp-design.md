@@ -196,8 +196,13 @@ Implementation status at this revision:
 - Gate 5 latest-frame publisher contract: PASS in an isolated native test;
   decoded-NV12 handoff and invalid-frame rejection are covered. It is not yet
   connected to the WebRTC receiver.
+- Receiver media pipeline fixture boundary: PASS. A valid H.264 fixture can
+  traverse the decoder and publish NV12 into a separate existing IPC mapping;
+  the native receiver CLI is wired to this boundary. No live access unit has
+  yet been received through Safari.
 - Safari ICE/DTLS/SRTP and H.264 RTP receive: not started.
-- Receiver-to-IPC wiring and integrated network path: not started.
+- Receiver-to-IPC live network path and integrated network path: not started;
+  the fixture-only pipeline boundary is passing as noted above.
 
 Acceptance for this Stage 2 design's implementation is not claimed until:
 

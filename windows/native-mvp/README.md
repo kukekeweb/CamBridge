@@ -49,15 +49,16 @@ so the native peer is ready for the browser Offer:
 ```
 
 `--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
-is restricted to an explicit local probe. This executable does not yet decode
-H.264 access units or publish network frames. The independent
+is restricted to an explicit local probe. The independent
 `receiver/latest_frame_publisher.*` boundary accepts a decoded `Nv12Frame` and
 publishes it through the existing shared-memory contract; it is unit-tested.
 The `receiver/h264_decoder.*` boundary independently converts valid H.264 access
-units to NV12 and records the selected Media Foundation transform, but it is not
-yet wired to the receiver or publisher. The probe therefore does not yet update
-the shared-memory frame provider from WebRTC or change the Virtual Camera. A
-successful build or signaling loopback
+units to NV12 and records the selected Media Foundation transform. The
+`receiver/receiver_media_pipeline.*` boundary connects it to the existing
+latest-frame IPC, and the default native receiver probe wires received access
+units into that boundary; `--no-publish` keeps the access-unit-only diagnostic
+mode. The probe updates the shared-memory frame provider only after real H.264
+access units arrive. A successful build or signaling loopback
 test must not be reported as Safari ICE/DTLS/SRTP or media-receive success.
 
 ## Virtual Camera installation boundary

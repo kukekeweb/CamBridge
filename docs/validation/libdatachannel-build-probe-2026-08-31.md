@@ -55,9 +55,10 @@ notices/artifact packaging review.
 The native receiver core remains dependency-free and is tested independently.
 The opt-in adapter now constructs a real libdatachannel PeerConnection, installs
 a recv-only H.264 track and depacketizer, accepts a validated Offer, and observes
-the generated Answer callback. This is an API/linkage and SDP wiring gate only;
-DTLS/SRTP, H.264 RTP callback, decoder output, and Safari interoperability are
-not claimed as implemented.
+the generated Answer callback. The receiver CLI is wired to the independent
+Media Foundation H.264-to-NV12 decoder and latest-frame IPC boundary. This is
+still an API/linkage, fixture, and startup wiring result: DTLS/SRTP, H.264 RTP
+callback, live decoder rate, and Safari interoperability are not claimed.
 
 ## Next dependency gate
 

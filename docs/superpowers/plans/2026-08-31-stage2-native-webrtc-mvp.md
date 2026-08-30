@@ -70,7 +70,9 @@ hardware-path proof, and sustained 60fps decode remain open.
 Status: the independent `LatestFramePublisher` boundary is implemented and
 covered by a native test. The decoder boundary is implemented separately. Both
 accept the existing `Nv12Frame` contract and do not know about WebRTC or Frame
-Server; receiver-to-decoder-to-publisher wiring remains open.
+Server. `ReceiverMediaPipeline` now connects access-unit input to the decoder
+and publisher, and its fixture test reads the published NV12 through a separate
+IPC mapping. Live Safari input remains open.
 
 ## Phase 6: integrated MVP acceptance
 
