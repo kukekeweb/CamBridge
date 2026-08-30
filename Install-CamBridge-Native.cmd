@@ -92,7 +92,7 @@ if exist "%SYNTHETIC%" (
   set "SYNTHETIC_START_EXIT=!ERRORLEVEL!"
   if exist "%SYNTHETIC_PID_FILE%" set /p SYNTHETIC_PID=<"%SYNTHETIC_PID_FILE%"
   if defined SYNTHETIC_PID if exist "%IPC_PROBE%" (
-    echo Checking shared-memory IPC readiness (bounded to about 10 seconds)...
+    echo Checking shared-memory IPC readiness - bounded to about 10 seconds...
     "%IPC_PROBE%" 1 >"%LOGDIR%\ipc-readiness-%RUN_TAG%.log" 2>&1
     set "IPC_READY_EXIT=!ERRORLEVEL!"
   )
