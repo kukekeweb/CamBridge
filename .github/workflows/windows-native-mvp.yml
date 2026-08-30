@@ -40,10 +40,18 @@ jobs:
             if ($null -ne $resolved) { $vcpkg = $resolved.Source }
           }
           if (-not (Test-Path -LiteralPath $vcpkg)) {
-            $visualStudioRoot = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022'
-            $resolved = Get-ChildItem -LiteralPath $visualStudioRoot -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
-              Select-Object -First 1
-            if ($null -ne $resolved) { $vcpkg = $resolved.FullName }
+            $visualStudioRoots = @(
+              (Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022'),
+              (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022')
+            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_) }
+            foreach ($visualStudioRoot in $visualStudioRoots) {
+              $resolved = Get-ChildItem -LiteralPath $visualStudioRoot -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($null -ne $resolved) {
+                $vcpkg = $resolved.FullName
+                break
+              }
+            }
           }
           if (-not (Test-Path -LiteralPath $vcpkg)) {
             "vcpkg executable not found under $vcpkgRoot or PATH" | Set-Content -LiteralPath $log
@@ -51,6 +59,9 @@ jobs:
             throw "vcpkg executable not found under $vcpkgRoot or PATH"
           }
           "vcpkg path: $vcpkg" | Set-Content -LiteralPath $log
+          $resolvedVcpkgRoot = Split-Path -Parent $vcpkg
+          "resolved vcpkg root: $resolvedVcpkgRoot" | Tee-Object -FilePath $log -Append
+          "CAMBRIDGE_VCPKG_ROOT=$resolvedVcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           & $vcpkg version 2>&1 | Tee-Object -FilePath $log -Append
           $versionExit = $LASTEXITCODE
           "vcpkg version exit: $versionExit" | Tee-Object -FilePath $log -Append
@@ -65,7 +76,8 @@ jobs:
       - name: Configure with libdatachannel receiver
         shell: pwsh
         run: |
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          $vcpkgRoot = $env:CAMBRIDGE_VCPKG_ROOT
+          if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT }
           if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = 'C:\vcpkg' }
           $toolchain = Join-Path $vcpkgRoot 'scripts/buildsystems/vcpkg.cmake'
           if (-not (Test-Path -LiteralPath $toolchain)) { throw "vcpkg toolchain not found: $toolchain" }
