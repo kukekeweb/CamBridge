@@ -197,3 +197,33 @@ Synthetic/sample probe: 120 samples
 The corresponding current Frame Server diagnostic process was PID `33492`.
 This repeat confirms the existing synthetic boundary again; it does not claim
 Safari WebRTC reception or live-camera acceptance.
+
+## Latest bounded repeat from the installed artifact (current working session)
+
+The installed Program Files Publisher and capture probe were run once more
+without changing the Media Source, Frame Server configuration, or installer.
+The probe completed within its bounded timeout and the Publisher was cleaned
+up; a post-run process check found no residual CamBridge Publisher or native
+receiver process.
+
+The observed result was:
+
+```text
+Video input count: 1
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+sample[1]: duration=166666, bufferBytes=3110400
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+This is a further real-machine repeat of the Synthetic Publisher → IPC →
+Virtual Camera → SourceReader gate. It confirms that the initial
+`MF_SOURCE_READERF_STREAMTICK` is followed by normal sample delivery. The gate
+is formally closed as PASS; no additional allocator, event-contract, or
+SourceReader investigation is required for this issue. Safari WebRTC
+reception and network-to-Virtual-Camera acceptance remain separate gates.
