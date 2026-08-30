@@ -93,6 +93,13 @@ target_include_directories(cambridge_latest_frame_publisher PUBLIC include recei
 target_compile_features(cambridge_latest_frame_publisher PUBLIC cxx_std_20)
 target_link_libraries(cambridge_latest_frame_publisher PUBLIC cambridge_frame_ipc)
 
+add_library(cambridge_h264_decoder STATIC
+  receiver/h264_decoder.cpp
+)
+target_include_directories(cambridge_h264_decoder PUBLIC include receiver)
+target_compile_features(cambridge_h264_decoder PUBLIC cxx_std_20)
+target_link_libraries(cambridge_h264_decoder PUBLIC cambridge_frame_ipc mf mfplat mfuuid)
+
 add_executable(cambridge_receiver_session_tests
   tests/receiver_session_tests.cpp
 )
@@ -102,6 +109,16 @@ add_executable(cambridge_latest_frame_publisher_tests
   tests/latest_frame_publisher_tests.cpp
 )
 target_link_libraries(cambridge_latest_frame_publisher_tests PRIVATE cambridge_latest_frame_publisher)
+
+add_executable(cambridge_h264_decoder_tests
+  tests/h264_decoder_tests.cpp
+)
+target_link_libraries(cambridge_h264_decoder_tests PRIVATE cambridge_h264_decoder)
+
+add_executable(cambridge_h264_decoder_probe
+  tests/h264_decoder_probe.cpp
+)
+target_link_libraries(cambridge_h264_decoder_probe PRIVATE cambridge_h264_decoder)
 
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   find_package(LibDataChannel CONFIG REQUIRED)
@@ -166,6 +183,7 @@ add_test(NAME cambridge_allocator_identity_tests COMMAND cambridge_allocator_ide
 add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnostic_event_trace_tests)
 add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)
 add_test(NAME cambridge_latest_frame_publisher_tests COMMAND cambridge_latest_frame_publisher_tests)
+add_test(NAME cambridge_h264_decoder_tests COMMAND cambridge_h264_decoder_tests)
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   add_test(NAME cambridge_libdatachannel_receiver_tests
     COMMAND cambridge_libdatachannel_receiver_tests)
