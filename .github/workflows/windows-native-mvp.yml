@@ -30,7 +30,21 @@ jobs:
 
       - name: Install pinned native dependencies
         shell: pwsh
-        run: vcpkg install --triplet x64-windows --clean-after-build
+        run: |
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = 'C:\vcpkg' }
+          $vcpkg = Join-Path $vcpkgRoot 'vcpkg.exe'
+          if (-not (Test-Path -LiteralPath $vcpkg)) {
+            $resolved = Get-Command vcpkg.exe -ErrorAction SilentlyContinue
+            if ($null -ne $resolved) { $vcpkg = $resolved.Source }
+          }
+          if (-not (Test-Path -LiteralPath $vcpkg)) {
+            throw "vcpkg executable not found under $vcpkgRoot or PATH"
+          }
+          & $vcpkg version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $vcpkg install --triplet x64-windows --clean-after-build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure with libdatachannel receiver
         shell: pwsh
