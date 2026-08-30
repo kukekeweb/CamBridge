@@ -82,6 +82,7 @@ jobs:
             "vcpkg diagnostic failure:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
             $errorText | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
             throw
+          }
 
       - name: Configure with libdatachannel receiver
         shell: pwsh
