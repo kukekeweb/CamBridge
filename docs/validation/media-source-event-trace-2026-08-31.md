@@ -172,3 +172,28 @@ Synthetic/sample probe: 120 samples
 The Publisher exited normally during cleanup and a post-run process check
 reported zero residual `cambridge_synthetic_publisher` processes. This is a
 repeat of the existing synthetic gate, not a WebRTC or iPhone-camera result.
+
+## Latest bounded repeat from the installed artifact (2026-08-31 06:19 JST)
+
+A further no-change repeat was run against the installed Program Files
+artifact. The finite Publisher was PID `32328`; it was cleaned up after the
+probe. The capture child diagnostic was written to
+`C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-11396-47564125.log`.
+
+The probe reported:
+
+```text
+Video input count: 1
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+The corresponding current Frame Server diagnostic process was PID `33492`.
+This repeat confirms the existing synthetic boundary again; it does not claim
+Safari WebRTC reception or live-camera acceptance.
