@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'windows/native-mvp/**'
+      - 'scripts/ci/**'
       - 'vcpkg.json'
       - 'docs/validation/native-mvp-synthetic.md'
       - '.github/workflows/windows-native-mvp.yml'
