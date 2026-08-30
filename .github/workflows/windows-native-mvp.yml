@@ -31,9 +31,9 @@ jobs:
 
       - name: Install pinned native dependencies
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: |
-          & .\scripts\ci\install-native-dependencies.ps1 `
-            -LogPath (Join-Path $env:RUNNER_TEMP 'cambridge-vcpkg-install.log')
+          pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\ci\install-native-dependencies.ps1 -LogPath (Join-Path $env:RUNNER_TEMP 'cambridge-vcpkg-install.log')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure with libdatachannel receiver
