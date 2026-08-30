@@ -29,6 +29,9 @@ adapter compiles against the pinned vcpkg manifest and produces an Answer in its
 local test; the NativeSignalingSession and WSS transport wrapper now bind the
 same local JSON contract. They do not yet open a Safari session.
 
+The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
+and FU-A packets. Real Safari RTP arrival remains a separate interop gate.
+
 ## Phase 3: Safari H.264 interop probe
 
 - Add a Stage 1-controlled “connect” path that creates a sendonly video

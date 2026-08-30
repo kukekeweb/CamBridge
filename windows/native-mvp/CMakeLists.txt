@@ -130,6 +130,12 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   )
   target_link_libraries(cambridge_native_signaling_websocket_tests
     PRIVATE cambridge_libdatachannel_receiver)
+
+  add_executable(cambridge_h264_depacketizer_tests
+    tests/h264_depacketizer_tests.cpp
+  )
+  target_link_libraries(cambridge_h264_depacketizer_tests
+    PRIVATE LibDataChannel::LibDataChannel)
 endif()
 
 enable_testing()
@@ -150,4 +156,6 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
     COMMAND cambridge_native_signaling_session_tests)
   add_test(NAME cambridge_native_signaling_websocket_tests
     COMMAND cambridge_native_signaling_websocket_tests)
+  add_test(NAME cambridge_h264_depacketizer_tests
+    COMMAND cambridge_h264_depacketizer_tests)
 endif()
