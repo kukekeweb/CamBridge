@@ -51,6 +51,7 @@ class ReceiverSession {
   explicit ReceiverSession(std::string sessionId);
 
   ReceiverError Start();
+  ReceiverError AdoptSessionId(std::string_view sessionId);
   ReceiverError AcceptOffer(std::string_view sessionId, std::string_view sdp);
   CandidateResult AcceptIce(std::string_view candidate);
   ReceiverError MarkConnected();

@@ -1,6 +1,7 @@
 const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024;
 const MAX_SESSION_ID_LENGTH = 128;
 const MAX_SDP_LENGTH = 512 * 1024;
+const AUTO_SESSION_ID = "auto";
 const ROLES = new Set(["browser", "native"]);
 const RELAY_TYPES = new Set(["offer", "answer", "ice", "close"]);
 
@@ -38,6 +39,7 @@ export function createSignalingBroker(options = {}) {
   let sessionId = null;
   let browser = null;
   let native = null;
+  let nativeAuto = false;
 
   function attach(endpoint) {
     if (!endpoint || typeof endpoint.send !== "function" || peerKey(endpoint) === undefined) {
@@ -51,7 +53,14 @@ export function createSignalingBroker(options = {}) {
     const record = endpoints.get(key);
     if (!record || record.endpoint !== endpoint) return;
     if (record.role === "browser" && browser?.endpoint === endpoint) browser = null;
-    if (record.role === "native" && native?.endpoint === endpoint) native = null;
+    if (record.role === "native" && native?.endpoint === endpoint) {
+      native = null;
+      nativeAuto = false;
+    }
+    if (record.role === "browser" && nativeAuto && native !== null) {
+      sessionId = null;
+      native.sessionId = AUTO_SESSION_ID;
+    }
     endpoints.delete(key);
     if (browser === null && native === null) sessionId = null;
   }
@@ -60,21 +69,33 @@ export function createSignalingBroker(options = {}) {
     if (!ROLES.has(role) || !isValidSessionId(requestedSessionId)) {
       return resultError("invalid_hello");
     }
+    const autoNative = role === "native" && requestedSessionId === AUTO_SESSION_ID;
+    if (requestedSessionId === AUTO_SESSION_ID && !autoNative) {
+      return resultError("invalid_hello");
+    }
     if (record.role !== null && (record.role !== role || record.sessionId !== requestedSessionId)) {
       return resultError("hello_already_bound");
     }
-    if (sessionId !== null && sessionId !== requestedSessionId) {
+    const effectiveSessionId = autoNative ? (sessionId ?? AUTO_SESSION_ID) : requestedSessionId;
+    if (sessionId !== null && sessionId !== effectiveSessionId) {
       return resultError("session_mismatch");
     }
     const current = role === "browser" ? browser : native;
     if (current !== null && current.endpoint !== record.endpoint) {
       return resultError("role_in_use");
     }
-    sessionId = requestedSessionId;
+    if (!autoNative) sessionId = requestedSessionId;
     record.role = role;
-    record.sessionId = requestedSessionId;
+    record.sessionId = effectiveSessionId;
     if (role === "browser") browser = record;
-    else native = record;
+    else {
+      native = record;
+      nativeAuto = autoNative;
+      if (sessionId !== null) record.sessionId = sessionId;
+    }
+    if (role === "browser" && nativeAuto && native !== null) {
+      native.sessionId = requestedSessionId;
+    }
     return resultOk();
   }
 
@@ -135,6 +156,7 @@ export function createSignalingBroker(options = {}) {
       sessionId,
       browserConnected: browser !== null,
       nativeConnected: native !== null,
+      nativeAuto,
     };
   }
 

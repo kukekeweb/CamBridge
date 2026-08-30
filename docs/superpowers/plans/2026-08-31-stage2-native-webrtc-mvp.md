@@ -13,7 +13,7 @@ baseline.
   close, and reconnect.
 - Verify no signaling message contains media payloads or external endpoints.
 
-Status: complete. The same-origin WSS broker and six-test server suite are in
+Status: complete. The same-origin WSS broker and eight-test server suite are in
 `windows/stage1-server/`.
 
 ## Phase 2: native receiver skeleton
@@ -35,6 +35,10 @@ and H.264 access-unit metrics, including the selected candidate pair and
 Access Unit byte counter, but it has not yet opened a live Safari session. The
 signaling session also has a bounded explicit restart path that recreates the
 receiver after close and is covered by a unit test.
+The native probe defaults to the broker's native-only `auto` session listener,
+which adopts the first browser session ID; explicit IDs remain available for
+deterministic tests. The broker has unit coverage for initial auto pairing and
+reuse after browser disconnect.
 
 The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
 and FU-A packets. Real Safari RTP arrival remains a separate interop gate.

@@ -54,6 +54,7 @@ class NativeSignalingSession {
   SendHandler sendHandler_;
   AccessUnitHandler accessUnitHandler_;
   std::string lastError_;
+  bool automaticSession_ = false;
   bool started_ = false;
   bool socketOpen_ = false;
 };

@@ -28,6 +28,11 @@ reception, sustained decoding, or Virtual Camera output from network frames.
   state after the signaling socket is closed, creates a fresh session with a new
   session ID, and reapplies the Access Unit handler. This is an explicit bounded
   restart operation; it is not an infinite retry loop.
+- The native probe can register with the reserved `auto` session ID. The local
+  broker binds that listener to the first browser session ID, relays the Offer
+  under the effective ID, and makes the listener reusable after browser detach.
+  Explicit session IDs remain supported. This removes manual ID copying for
+  the normal startup path, but does not by itself prove live Safari reconnect.
 - `LibDataChannelReceiver` records peer-connection state, ICE state, state-change
   counters, and whether H.264 is present in the remote offer and local answer.
   These are diagnostic observations only; they do not prove a live Safari path.

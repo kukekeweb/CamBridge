@@ -33,7 +33,7 @@ BOOL WINAPI ConsoleControlHandler(DWORD controlType) {
 struct Options {
   std::string signalingUrl;
   std::string caCertificate;
-  std::string sessionId;
+  std::string sessionId = "auto";
   std::string bindAddress;
   unsigned int bitrateKbps = 5000;
   unsigned int durationMs = 0;
@@ -45,10 +45,10 @@ struct Options {
 void PrintUsage() {
   std::cout
       << "CamBridge native WebRTC receiver probe\n"
-      << "Usage: cambridge_native_receiver --url <wss-url> --session-id <id> "
+      << "Usage: cambridge_native_receiver --url <wss-url> [--session-id <id>] "
          "[--ca <root-ca.pem>] [options]\n"
       << "  --url <wss-url>          WSS signaling URL\n"
-      << "  --session-id <id>        ID shown by the Safari Web Client\n"
+      << "  --session-id <id>        Session ID; default: auto (first browser session)\n"
       << "  --ca <path>              CamBridge Local CA PEM certificate\n"
       << "  --bind-address <IPv4>    Local ICE bind address\n"
       << "  --bitrate-kbps <n>       H.264 receive description bitrate\n"
@@ -129,8 +129,8 @@ int wmain(int argc, wchar_t** argv) {
     PrintUsage();
     return options.help ? 0 : 2;
   }
-  if (options.signalingUrl.empty() || options.sessionId.empty()) {
-    std::cerr << "--url and --session-id are required\n";
+  if (options.signalingUrl.empty()) {
+    std::cerr << "--url is required\n";
     PrintUsage();
     return 2;
   }

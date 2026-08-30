@@ -37,18 +37,27 @@ The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
 peer and do not yet constitute an interoperability result.
 
 The opt-in `cambridge_native_receiver.exe` is a bounded native receiver probe
-around that wrapper. It accepts the WSS URL, the session id shown by the Web
-Client, and the CamBridge Local CA; it prints receiver state, ICE state, H.264
-offer/answer presence, access-unit counts, and RTP timestamps. Start this probe before pressing Connect in Safari
+around that wrapper. It accepts the WSS URL and the CamBridge Local CA; by
+default it registers as an `auto` native listener and adopts the first browser
+session ID received by the local broker. This removes the need to copy a
+session ID from the Web Client for the normal one-iPhone/one-PC flow. An
+explicit `--session-id <id>` remains available for deterministic diagnostics.
+The probe prints receiver state, ICE state, H.264 offer/answer presence,
+access-unit counts, and RTP timestamps. Start this probe before pressing Connect in Safari
 so the native peer is ready for the browser Offer:
 
 ```powershell
 .\cambridge_native_receiver.exe `
   --url wss://192.168.11.2:8443/signaling `
-  --session-id <id-shown-by-safari> `
   --ca C:\path\to\CamBridge-Local-CA.pem `
   --bind-address 192.168.11.2
 ```
+
+The reserved `auto` value is accepted only for the native role. The broker
+binds it to the first browser session, and resets the binding when that browser
+disconnects. This is a bounded pairing convenience, not a claim that the
+native WebSocket transport already performs automatic reconnect or that live
+Safari interoperability has passed.
 
 `--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
 is restricted to an explicit local probe. The independent

@@ -86,16 +86,20 @@ same origin for signaling, avoiding a second certificate or port.
 
 The protocol is one session with one iPhone and one Windows receiver:
 
-1. Browser sends `hello` and a session identifier.
-2. Browser creates an Offer with one video transceiver in `sendonly` mode.
-3. Browser sends the SDP Offer.
-4. Native receiver validates the session and returns an SDP Answer with the
+1. The native receiver sends `hello` with either an explicit session identifier
+   or the native-only reserved `auto` value. The browser sends `hello` with a
+   non-empty session identifier.
+2. When `auto` is used, the local broker binds it to the first browser session
+   and relays subsequent messages using that effective session identifier.
+3. Browser creates an Offer with one video transceiver in `sendonly` mode.
+4. Browser sends the SDP Offer.
+5. Native receiver validates the session and returns an SDP Answer with the
    video direction accepted as `recvonly`.
-5. The native receiver explicitly starts local ICE gathering after creating the
+6. The native receiver explicitly starts local ICE gathering after creating the
    Answer because the initial configuration disables automatic gathering; both
    sides then exchange trickled ICE candidates.
-6. Both sides report state changes and the selected codec for diagnostics.
-7. Close, timeout, or network loss moves the session to disconnected and permits
+7. Both sides report state changes and the selected codec for diagnostics.
+8. Close, timeout, or network loss moves the session to disconnected and permits
    a fresh session without reusing stale SDP/ICE state.
 
 Messages are versioned and bounded. Signaling carries no video bytes. The server

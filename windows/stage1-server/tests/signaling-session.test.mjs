@@ -83,3 +83,39 @@ test("allows a fresh session after both endpoints detach", () => {
   broker.attach(browser2);
   assert.deepEqual(send(broker, browser2, { type: "hello", role: "browser", sessionId: "s2" }), { ok: true });
 });
+
+test("binds a native auto listener to the first browser session", () => {
+  const broker = createSignalingBroker();
+  const browser = peer("browser-1");
+  const native = peer("native-1");
+  broker.attach(native);
+  broker.attach(browser);
+
+  assert.deepEqual(send(broker, native, { type: "hello", role: "native", sessionId: "auto" }), { ok: true });
+  assert.deepEqual(send(broker, browser, { type: "hello", role: "browser", sessionId: "browser-session" }), { ok: true });
+  assert.deepEqual(send(broker, browser, {
+    type: "offer",
+    sessionId: "browser-session",
+    sdp: "v=0\r\na=mid:0",
+  }), { ok: true });
+  assert.deepEqual(native.sent.at(-1), {
+    type: "offer",
+    sessionId: "browser-session",
+    sdp: "v=0\r\na=mid:0",
+  });
+});
+
+test("auto listener is reusable after the browser disconnects", () => {
+  const broker = createSignalingBroker();
+  const native = peer("native-1");
+  const browser = peer("browser-1");
+  const browser2 = peer("browser-2");
+  broker.attach(native);
+  broker.attach(browser);
+  broker.attach(browser2);
+
+  assert.deepEqual(send(broker, native, { type: "hello", role: "native", sessionId: "auto" }), { ok: true });
+  assert.deepEqual(send(broker, browser, { type: "hello", role: "browser", sessionId: "first" }), { ok: true });
+  broker.detach(browser);
+  assert.deepEqual(send(broker, browser2, { type: "hello", role: "browser", sessionId: "second" }), { ok: true });
+});

@@ -8,6 +8,7 @@ namespace cambridge::native::receiver {
 
 NativeSignalingSession::NativeSignalingSession(NativeSignalingSessionConfig config)
     : config_(std::move(config)) {
+  automaticSession_ = config_.sessionId == "auto";
   CreateReceiver();
 }
 
@@ -53,6 +54,7 @@ bool NativeSignalingSession::Restart(std::string sessionId) {
   if (receiver_) receiver_->Close();
   pendingIce_.clear();
   config_.sessionId = std::move(sessionId);
+  automaticSession_ = config_.sessionId == "auto";
   started_ = false;
   socketOpen_ = false;
   lastError_.clear();
@@ -73,7 +75,13 @@ bool NativeSignalingSession::OnSocketMessage(const std::string& message) {
   SignalingMessage parsed;
   std::string error;
   if (!ParseSignalingMessage(message, &parsed, &error)) return Fail(error);
-  if (parsed.sessionId != config_.sessionId) return Fail("session mismatch");
+  if (parsed.sessionId != config_.sessionId) {
+    if (!automaticSession_ || !receiver_->AdoptSessionId(parsed.sessionId)) {
+      return Fail("session mismatch");
+    }
+    config_.sessionId = parsed.sessionId;
+    automaticSession_ = false;
+  }
 
   if (parsed.type == SignalingMessageType::Ice) {
     if (parsed.candidateIsNull) return true;

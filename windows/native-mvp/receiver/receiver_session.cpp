@@ -93,6 +93,14 @@ ReceiverError ReceiverSession::Start() {
   return ReceiverError::None;
 }
 
+ReceiverError ReceiverSession::AdoptSessionId(std::string_view sessionId) {
+  if (state_ != ReceiverState::WaitingForOffer || sessionId.empty()) {
+    return ReceiverError::InvalidState;
+  }
+  sessionId_ = std::string(sessionId);
+  return ReceiverError::None;
+}
+
 ReceiverError ReceiverSession::AcceptOffer(std::string_view sessionId, std::string_view sdp) {
   if (state_ != ReceiverState::WaitingForOffer) return ReceiverError::InvalidState;
   if (sessionId != sessionId_) return ReceiverError::SessionMismatch;

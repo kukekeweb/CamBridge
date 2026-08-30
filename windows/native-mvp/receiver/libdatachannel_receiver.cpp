@@ -166,6 +166,14 @@ bool LibDataChannelReceiver::Start() {
   return true;
 }
 
+bool LibDataChannelReceiver::AdoptSessionId(const std::string& sessionId) {
+  const ReceiverError result = session_.AdoptSessionId(sessionId);
+  if (result != ReceiverError::None) return Fail(ReceiverErrorName(result));
+  config_.sessionId = sessionId;
+  lastError_.clear();
+  return true;
+}
+
 bool LibDataChannelReceiver::AcceptOffer(const std::string& sessionId,
                                          const std::string& sdp) {
   const ReceiverError validation = session_.AcceptOffer(sessionId, sdp);

@@ -95,12 +95,42 @@ void TestRestartCreatesFreshSessionAfterClose() {
   assert(hello.sessionId == "s4");
   assert(session.state() == ReceiverState::WaitingForOffer);
 }
+
+void TestAutomaticSessionAdoptsBrowserOfferId() {
+  NativeSignalingSession session({"auto", "192.168.11.2", 5000});
+  std::mutex mutex;
+  std::condition_variable condition;
+  std::vector<std::string> sent;
+  session.SetSendHandler([&](const std::string& message) {
+    {
+      std::lock_guard lock(mutex);
+      sent.push_back(message);
+    }
+    condition.notify_all();
+  });
+  assert(session.Start());
+  assert(session.OnSocketOpen());
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"offer","sessionId":"browser-auto","sdp":"v=0\r\no=- 1 1 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test\r\na=ice-pwd:test-password\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\na=setup:actpass\r\n"})"));
+  std::unique_lock lock(mutex);
+  assert(condition.wait_for(lock, std::chrono::seconds(1), [&] {
+    return std::any_of(sent.begin(), sent.end(), [](const std::string& message) {
+      return message.find("\"type\":\"answer\"") != std::string::npos;
+    });
+  }));
+  auto answer = std::find_if(sent.begin(), sent.end(), [](const std::string& message) {
+    return message.find("\"type\":\"answer\"") != std::string::npos;
+  });
+  assert(answer != sent.end());
+  assert(answer->find("\"sessionId\":\"browser-auto\"") != std::string::npos);
+}
 }  // namespace
 
 int main() {
   TestHelloAndOfferAnswer();
   TestIceBeforeOfferIsQueued();
   TestRestartCreatesFreshSessionAfterClose();
+  TestAutomaticSessionAdoptsBrowserOfferId();
   std::cout << "CamBridge native signaling session tests passed\n";
   return 0;
 }

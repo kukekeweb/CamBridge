@@ -71,6 +71,7 @@ class LibDataChannelReceiver {
   LibDataChannelReceiver& operator=(const LibDataChannelReceiver&) = delete;
 
   bool Start();
+  bool AdoptSessionId(const std::string& sessionId);
   bool AcceptOffer(const std::string& sessionId, const std::string& sdp);
   bool AddRemoteCandidate(const std::string& candidate, const std::string& mid);
   void Close();
