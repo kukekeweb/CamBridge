@@ -84,8 +84,11 @@ class CamBridgeMediaStream final
   std::int64_t nextTimestamp100ns_ = 0;
   std::uint64_t lastSequence_ = 0;
   std::uint64_t requestSampleCount_ = 0;
+  std::uint64_t requestSampleSuccessCount_ = 0;
+  std::uint64_t requestSampleFailureCount_ = 0;
   std::uint64_t samplesProduced_ = 0;
   std::uint64_t samplesDelivered_ = 0;
+  std::uint64_t firstRequestUtc100ns_ = 0;
   LONGLONG lastSampleTimestamp100ns_ = 0;
   LONGLONG lastSampleDuration100ns_ = 0;
   MFSampleAllocatorUsage allocatorUsage_ = MFSampleAllocatorUsage_UsesProvidedAllocator;

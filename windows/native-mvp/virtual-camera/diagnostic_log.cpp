@@ -2,7 +2,9 @@
 
 #include <ShlObj.h>
 #include <Shlwapi.h>
+#include <mfidl.h>
 
+#include <cwchar>
 #include <mutex>
 #include <string>
 
@@ -101,13 +103,77 @@ void LogPrefix(const wchar_t* component, const wchar_t* eventName,
 
 }  // namespace
 
+const wchar_t* MediaEventTypeName(DWORD eventType) {
+  switch (static_cast<MediaEventType>(eventType)) {
+    case MEUnknown: return L"MEUnknown";
+    case MEError: return L"MEError";
+    case MENewStream: return L"MENewStream";
+    case MEUpdatedStream: return L"MEUpdatedStream";
+    case MESourceStarted: return L"MESourceStarted";
+    case MESourceStopped: return L"MESourceStopped";
+    case MESourcePaused: return L"MESourcePaused";
+    case MEStreamStarted: return L"MEStreamStarted";
+    case MEStreamStopped: return L"MEStreamStopped";
+    case MEStreamPaused: return L"MEStreamPaused";
+    case MEStreamTick: return L"MEStreamTick";
+    case MEEndOfStream: return L"MEEndOfStream";
+    case MEMediaSample: return L"MEMediaSample";
+    case MEStreamSeeked: return L"MEStreamSeeked";
+    default: return L"Unknown";
+  }
+}
+
 void LogControlEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr) {
   LogPrefix(component, eventName, L"hr=" + HResultText(hr));
 }
 
 void LogQueryInterface(const wchar_t* component, REFIID requestedIid, HRESULT hr) {
+  const bool isSourceOrStream = component != nullptr &&
+      (wcscmp(component, L"CamBridgeMediaSource") == 0 ||
+       wcscmp(component, L"CamBridgeMediaStream") == 0);
+  wchar_t verbose[8]{};
+  const DWORD length = GetEnvironmentVariableW(
+      L"CAMBRIDGE_NATIVE_MVP_VERBOSE_QI", verbose, ARRAYSIZE(verbose));
+  if (isSourceOrStream && SUCCEEDED(hr) &&
+      !(length > 0 && verbose[0] == L'1')) {
+    return;
+  }
   LogPrefix(component, L"QueryInterface",
             L"iid=" + GuidText(requestedIid) + L" hr=" + HResultText(hr));
+}
+
+void LogMediaEvent(const wchar_t* component, const wchar_t* operation,
+                   DWORD eventType, HRESULT callHr, HRESULT status,
+                   REFGUID extendedType, bool associatedObject,
+                   const void* associatedPointer, DWORD streamId,
+                   std::uint64_t sequence, HRESULT valueHr) {
+  LogPrefix(component, operation,
+            L"eventType=" + std::wstring(MediaEventTypeName(eventType)) +
+                L" eventTypeValue=" + std::to_wstring(eventType) +
+                L" callHr=" + HResultText(callHr) +
+                L" status=" + HResultText(status) +
+                L" extendedType=" + GuidText(extendedType) +
+                L" associatedObject=" + std::to_wstring(associatedObject ? 1 : 0) +
+                L" associatedPointer=" + PointerText(associatedPointer) +
+                L" streamId=" + std::to_wstring(streamId) +
+                L" sequence=" + std::to_wstring(sequence) +
+                L" valueHr=" + HResultText(valueHr));
+}
+
+void LogDescriptorEvent(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                        DWORD descriptorCount, DWORD streamId, bool selected,
+                        REFGUID majorType, REFGUID subtype,
+                        std::uint32_t width, std::uint32_t height,
+                        std::uint32_t fps, std::uint32_t denominator) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" descriptorCount=" +
+                std::to_wstring(descriptorCount) + L" streamId=" +
+                std::to_wstring(streamId) + L" selected=" +
+                std::to_wstring(selected ? 1 : 0) + L" majorType=" +
+                GuidText(majorType) + L" subtype=" + GuidText(subtype) +
+                L" width=" + std::to_wstring(width) + L" height=" +
+                std::to_wstring(height) + L" fps=" + std::to_wstring(fps) +
+                L" denominator=" + std::to_wstring(denominator));
 }
 
 void LogIpcStatus(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
@@ -167,6 +233,25 @@ void LogStreamSummary(const wchar_t* component, const wchar_t* eventName, HRESUL
                 std::to_wstring(requestSamples) + L" samplesProduced=" +
                 std::to_wstring(samplesProduced) + L" samplesDelivered=" +
                 std::to_wstring(samplesDelivered) + L" lastSequence=" +
+                std::to_wstring(lastSequence));
+}
+
+void LogRequestSampleSummary(const wchar_t* component, const wchar_t* eventName,
+                             HRESULT hr, std::uint64_t requestSamples,
+                             std::uint64_t requestSuccesses,
+                             std::uint64_t requestFailures,
+                             std::uint64_t samplesProduced,
+                             std::uint64_t samplesDelivered,
+                             std::uint64_t firstRequestUtc100ns,
+                             std::uint64_t lastSequence) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" requestSamples=" +
+                std::to_wstring(requestSamples) + L" requestSuccesses=" +
+                std::to_wstring(requestSuccesses) + L" requestFailures=" +
+                std::to_wstring(requestFailures) + L" samplesProduced=" +
+                std::to_wstring(samplesProduced) + L" samplesDelivered=" +
+                std::to_wstring(samplesDelivered) + L" firstRequestUtc100ns=" +
+                std::to_wstring(firstRequestUtc100ns) + L" lastSequence=" +
                 std::to_wstring(lastSequence));
 }
 
