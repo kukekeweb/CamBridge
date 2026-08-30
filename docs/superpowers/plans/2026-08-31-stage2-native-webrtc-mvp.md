@@ -62,6 +62,11 @@ and FU-A packets. Real Safari RTP arrival remains a separate interop gate.
   without Safari.
 - Re-run the existing Virtual Camera capture probe and require 120+ samples.
 
+Status: the independent `LatestFramePublisher` boundary is implemented and
+covered by a native test. It accepts only the existing `Nv12Frame` contract and
+does not know about WebRTC or Frame Server. Receiver/decoder wiring remains
+open.
+
 ## Phase 6: integrated MVP acceptance
 
 - Run Safari rear-camera 1080p60 to native receiver on LAN.

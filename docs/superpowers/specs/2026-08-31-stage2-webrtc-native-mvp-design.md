@@ -192,8 +192,12 @@ Implementation status at this revision:
 - Gate 2 receiver state/SDP policy core: PASS.
 - Gate 2 libdatachannel opt-in API/SDP wiring: PASS with v0.24.5 package;
   Answer callback is observed in a local test.
+- Gate 5 latest-frame publisher contract: PASS in an isolated native test;
+  decoded-NV12 handoff and invalid-frame rejection are covered. It is not yet
+  connected to the WebRTC receiver or decoder.
 - Safari ICE/DTLS/SRTP and H.264 RTP receive: not started.
-- Decoder, receiver-to-IPC, and integrated network path: not started.
+- Media Foundation decoder, receiver-to-IPC wiring, and integrated network
+  path: not started.
 
 Acceptance for this Stage 2 design's implementation is not claimed until:
 

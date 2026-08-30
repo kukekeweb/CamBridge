@@ -46,9 +46,13 @@ so the native peer is ready for the browser Offer:
 
 `--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
 is restricted to an explicit local probe. This executable does not yet decode
-H.264, publish NV12, update the shared-memory frame provider, or change the
-Virtual Camera. A successful build or signaling loopback test must not be
-reported as Safari ICE/DTLS/SRTP or media-receive success.
+H.264 or consume network frames. The independent
+`receiver/latest_frame_publisher.*` boundary accepts a decoded `Nv12Frame` and
+publishes it through the existing shared-memory contract; it is unit-tested but
+is not wired to the receiver until the decoder boundary is implemented. The
+probe therefore does not yet update the shared-memory frame provider from
+WebRTC or change the Virtual Camera. A successful build or signaling loopback
+test must not be reported as Safari ICE/DTLS/SRTP or media-receive success.
 
 ## Virtual Camera installation boundary
 
@@ -157,6 +161,10 @@ ctest --test-dir build/native-mvp-libdatachannel -C Release --output-on-failure
 The adapter build must not be used as evidence of Safari interoperation until
 the separate LAN probe passes. It also does not change the existing Virtual
 Camera registration or Media Source process boundary.
+
+The opt-in build also includes `cambridge_latest_frame_publisher_tests`, which
+verifies decoded-NV12 handoff, invalid-frame rejection, and publisher metrics
+without loading the Frame Server or registering a camera.
 
 The build itself does not change the registry, firewall, or camera registration.
 Installation commands above are explicit runtime operations and should be tested

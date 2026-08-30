@@ -86,10 +86,22 @@ add_library(cambridge_receiver_core STATIC
 target_include_directories(cambridge_receiver_core PUBLIC receiver)
 target_compile_features(cambridge_receiver_core PUBLIC cxx_std_20)
 
+add_library(cambridge_latest_frame_publisher STATIC
+  receiver/latest_frame_publisher.cpp
+)
+target_include_directories(cambridge_latest_frame_publisher PUBLIC include receiver)
+target_compile_features(cambridge_latest_frame_publisher PUBLIC cxx_std_20)
+target_link_libraries(cambridge_latest_frame_publisher PUBLIC cambridge_frame_ipc)
+
 add_executable(cambridge_receiver_session_tests
   tests/receiver_session_tests.cpp
 )
 target_link_libraries(cambridge_receiver_session_tests PRIVATE cambridge_receiver_core)
+
+add_executable(cambridge_latest_frame_publisher_tests
+  tests/latest_frame_publisher_tests.cpp
+)
+target_link_libraries(cambridge_latest_frame_publisher_tests PRIVATE cambridge_latest_frame_publisher)
 
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   find_package(LibDataChannel CONFIG REQUIRED)
@@ -153,6 +165,7 @@ add_test(NAME cambridge_media_source_tests_provided_allocator
 add_test(NAME cambridge_allocator_identity_tests COMMAND cambridge_allocator_identity_tests)
 add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnostic_event_trace_tests)
 add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)
+add_test(NAME cambridge_latest_frame_publisher_tests COMMAND cambridge_latest_frame_publisher_tests)
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   add_test(NAME cambridge_libdatachannel_receiver_tests
     COMMAND cambridge_libdatachannel_receiver_tests)
