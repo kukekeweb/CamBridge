@@ -148,6 +148,52 @@ reproduces the native synthetic gate with the current installed artifact.
 The first `STREAMTICK` is therefore treated as an expected initial SourceReader
 notification, not as a sample-delivery failure. The current gate remains PASS.
 
+## Artifact identity note for later repeats
+
+The historical PID `33492` run above recorded a matching installed/build hash
+at that time. A later local build was produced after that installation. Before
+the latest repeat, the current hashes were:
+
+```text
+Program Files registered artifact:
+2A6F5D7182F3F9C18B13546E6C9D7B97E14688B72ADF927B9D0D8FC8ABF2925E
+
+Uninstalled local build artifact:
+0678AA2B6F5FAFA20FA4FE926B39DD40E0ECAA73176D49B131FB964FC69C5165
+```
+
+The latest repeat intentionally used the registered Program Files artifact;
+that artifact, not an uninstalled build directory, is the authoritative input
+for the Windows camera test. The differing hashes do not invalidate the
+repeat, but they do mean that a newly built DLL must be installed and the
+Frame Server module identity checked before attributing a result to that new
+build.
+
+## Latest bounded repeat evidence (current installed artifact)
+
+The installed publisher and capture probe were run with a finite 15-second
+publisher lifetime and a 10-second capture timeout. The publisher was started
+as PID `29948`; it was cleaned up after the bounded probe. The capture probe
+reported:
+
+```text
+Video input count: 1
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+sample[1]: duration=166666, bufferBytes=3110400
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+The post-run process check found no remaining
+`cambridge_synthetic_publisher.exe`. This is the one required current-machine
+recheck for the closed Synthetic gate; it does not reopen the old
+RequestSample investigation.
+
 ## Bounded repeat from the installed artifact (2026-08-31 04:33 JST)
 
 As a final bounded regression check, the installed Publisher and capture probe
