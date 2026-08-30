@@ -343,3 +343,33 @@ CamBridge-queued `MEStreamTick` and did not prevent subsequent sample delivery.
 This gate proves Synthetic Publisher/IPC → Media Source/Frame Server →
 Virtual Camera → SourceReader for NV12 1920x1080@60. It does not prove Safari
 WebRTC interoperability, hardware decode, or Discord acceptance.
+
+## Current installed-artifact repeat (2026-08-31, bounded)
+
+The installed Program Files Publisher and capture probe were run once more
+without changing registration, Media Source code, or Frame Server state. The
+Publisher was launched as PID `1544`; the separate IPC probe passed before the
+capture probe (`mappingOpen=true`, `producerState=1`, observed approximately
+60 fps). Cleanup stopped that exact Publisher PID and found no residual
+`cambridge_synthetic_publisher` process.
+
+The capture probe reported:
+
+```text
+Video input count: 1
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+sample[1]: duration=166666, bufferBytes=3110400
+sample[2]: duration=166666, bufferBytes=3110400
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+The capture-child diagnostic was written to
+`C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-23156-44191062.log`.
+This is a second bounded installed-artifact PASS, not a WebRTC or iPhone-camera
+result.
