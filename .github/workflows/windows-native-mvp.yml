@@ -44,8 +44,12 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = 'C:\vcpkg' }
           $toolchain = Join-Path $vcpkgRoot 'scripts/buildsystems/vcpkg.cmake'
           if (-not (Test-Path -LiteralPath $toolchain)) { throw "vcpkg toolchain not found: $toolchain" }
+          $manifestRoot = $env:GITHUB_WORKSPACE
+          $installedDir = Join-Path $manifestRoot 'vcpkg_installed'
           cmake -S windows/native-mvp -B build/native-mvp -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$toolchain" `
+            -DVCPKG_MANIFEST_DIR="$manifestRoot" `
+            -DVCPKG_INSTALLED_DIR="$installedDir" `
             -DCAMBRIDGE_ENABLE_LIBDATACHANNEL=ON
 
       - name: Build Release
