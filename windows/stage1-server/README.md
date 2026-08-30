@@ -48,7 +48,8 @@ The same HTTPS listener accepts WSS at `wss://<bind-ip>:<port>/signaling`.
 Clients must send `hello` with role `browser` or `native` and a shared session
 ID before sending `offer`, `answer`, `ice`, or `close`. The current endpoint
 relays only bounded JSON control messages; media still does not pass through
-this server.
+this server. The native receiver connects to this endpoint as the separate
+WebRTC peer; the server is not a media relay.
 
 ## Name resolution policy
 

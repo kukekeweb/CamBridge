@@ -111,11 +111,13 @@ copy the resulting JSON. A short FPS dip alone does not fail the test; the
 report evaluates exact settings, Track events, settings changes, page
 lifecycle, JavaScript errors, and completion.
 
-Stage 2 is design-only at this point. The design draft and implementation plan
-are [`docs/superpowers/specs/2026-08-29-cambridge-stage2-design-draft.md`](docs/superpowers/specs/2026-08-29-cambridge-stage2-design-draft.md)
-and [`docs/superpowers/plans/2026-08-29-cambridge-stage2-implementation-plan-draft.md`](docs/superpowers/plans/2026-08-29-cambridge-stage2-implementation-plan-draft.md).
-No WebRTC sender, receiver, decoder, D3D11, or Virtual Camera source has been
-added for Stage 2.
+Stage 2 now contains an opt-in native WebRTC receiver probe and the local WSS
+signaling boundary. The current implementation covers signaling, H.264 RTP
+depacketization, Media Foundation H.264-to-NV12 decoding, and publication into
+the existing shared-memory path. It has passing native fixture/loopback tests,
+but live Safari RTP reception and network-to-Virtual-Camera acceptance remain
+open. The design and implementation plan are [`docs/superpowers/specs/2026-08-31-stage2-webrtc-native-mvp-design.md`](docs/superpowers/specs/2026-08-31-stage2-webrtc-native-mvp-design.md)
+and [`docs/superpowers/plans/2026-08-31-stage2-native-webrtc-mvp.md`](docs/superpowers/plans/2026-08-31-stage2-native-webrtc-mvp.md).
 
 ## Validation
 
@@ -148,4 +150,5 @@ For the 1080p60 investigation, run **Run All Cameras** after permission has
 populated the device labels. Wait for all eight trials per camera to finish,
 then use **Copy JSON** or **Copy CSV** to preserve the complete evidence.
 
-Until this real-device gate passes, Stage 2 must not begin.
+The live Stage 2 Safari interop acceptance remains gated on this real-device
+capture result; offline receiver and decoder tests do not replace it.
