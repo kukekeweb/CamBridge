@@ -178,7 +178,7 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
     receiver/native_receiver_main.cpp
   )
   target_link_libraries(cambridge_native_receiver
-    PRIVATE cambridge_libdatachannel_receiver)
+    PRIVATE cambridge_libdatachannel_receiver cambridge_receiver_media_pipeline)
 
   add_executable(cambridge_h264_depacketizer_tests
     tests/h264_depacketizer_tests.cpp

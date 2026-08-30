@@ -1,4 +1,5 @@
 #include "native_signaling_websocket.h"
+#include "receiver_media_pipeline.h"
 
 #include <windows.h>
 
@@ -6,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,6 +38,7 @@ struct Options {
   unsigned int bitrateKbps = 5000;
   unsigned int durationMs = 0;
   bool allowInsecureTls = false;
+  bool publishFrames = true;
   bool help = false;
 };
 
@@ -50,6 +53,7 @@ void PrintUsage() {
       << "  --bind-address <IPv4>    Local ICE bind address\n"
       << "  --bitrate-kbps <n>       H.264 receive description bitrate\n"
       << "  --duration-ms <n>        Stop after n milliseconds (0 = Ctrl+C)\n"
+      << "  --no-publish             Receive access units without decode/IPC output\n"
       << "  --allow-insecure-tls     Local probe only; do not use for normal runs\n"
       << "  --help                   Show this help\n";
 }
@@ -108,6 +112,8 @@ bool ParseOptions(int argc, wchar_t** argv, Options* options) {
           !ParseUnsigned(value, &options->durationMs)) return false;
     } else if (argument == L"--allow-insecure-tls") {
       options->allowInsecureTls = true;
+    } else if (argument == L"--no-publish") {
+      options->publishFrames = false;
     } else {
       return false;
     }
@@ -140,20 +146,40 @@ int wmain(int argc, wchar_t** argv) {
       options.allowInsecureTls,
       {options.sessionId, options.bindAddress, options.bitrateKbps},
   });
-  receiver.SetAccessUnitHandler([](std::vector<std::uint8_t> accessUnit,
-                                   std::uint32_t timestamp) {
-    static std::atomic<std::uint64_t> count = 0;
-    const auto sequence = count.fetch_add(1, std::memory_order_relaxed) + 1;
-    if (sequence <= 3 || sequence % 60 == 0) {
-      std::cout << "AccessUnit: sequence=" << sequence << " bytes=" << accessUnit.size()
-                << " rtpTimestamp=" << timestamp << "\n";
+  std::unique_ptr<cambridge::native::ReceiverMediaPipeline> mediaPipeline;
+  if (options.publishFrames) {
+    mediaPipeline = std::make_unique<cambridge::native::ReceiverMediaPipeline>();
+    if (!mediaPipeline->Start()) {
+      std::cerr << "Receiver media pipeline start failed: "
+                << mediaPipeline->lastError() << "\n";
+      return 1;
     }
-  });
+    receiver.SetAccessUnitHandler(
+        [&mediaPipeline](std::vector<std::uint8_t> accessUnit,
+                         std::uint32_t timestamp) {
+          if (!mediaPipeline->SubmitAccessUnit(accessUnit, timestamp)) {
+            std::cerr << "Receiver media pipeline access unit failed: "
+                      << mediaPipeline->lastError() << "\n";
+          }
+        });
+  } else {
+    receiver.SetAccessUnitHandler([](std::vector<std::uint8_t> accessUnit,
+                                     std::uint32_t timestamp) {
+      static std::atomic<std::uint64_t> count = 0;
+      const auto sequence = count.fetch_add(1, std::memory_order_relaxed) + 1;
+      if (sequence <= 3 || sequence % 60 == 0) {
+        std::cout << "AccessUnit: sequence=" << sequence << " bytes=" << accessUnit.size()
+                  << " rtpTimestamp=" << timestamp << "\n";
+      }
+    });
+  }
 
   std::cout << "CamBridge native receiver probe\n"
             << "Signaling: " << options.signalingUrl << "\n"
             << "Session ID: " << options.sessionId << "\n"
-            << "ICE: LAN host candidates only; external STUN/TURN disabled\n";
+            << "ICE: LAN host candidates only; external STUN/TURN disabled\n"
+            << "Output: " << (options.publishFrames ? "H264 -> NV12 -> shared IPC" :
+                              "access-unit diagnostics only") << "\n";
   if (!receiver.Start()) {
     std::cerr << "Native receiver start failed: " << receiver.lastError() << "\n";
     return 1;
@@ -180,6 +206,14 @@ int wmain(int argc, wchar_t** argv) {
       const auto metrics = receiver.metrics();
       std::cout << "Metrics: accessUnits=" << metrics.accessUnits
                 << " lastRtpTimestamp=" << metrics.lastTimestamp << "\n";
+      if (mediaPipeline) {
+        const auto pipelineMetrics = mediaPipeline->metrics();
+        std::cout << "Pipeline: input=" << pipelineMetrics.inputAccessUnits
+                  << " decoded=" << pipelineMetrics.decodedFrames
+                  << " published=" << pipelineMetrics.publishedFrames
+                  << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
+                  << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
+      }
       lastReport = now;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -190,6 +224,15 @@ int wmain(int argc, wchar_t** argv) {
             << "Final metrics: accessUnits=" << metrics.accessUnits
             << " lastRtpTimestamp=" << metrics.lastTimestamp << "\n";
   receiver.Close();
+  if (mediaPipeline) {
+    const auto pipelineMetrics = mediaPipeline->metrics();
+    std::cout << "Final pipeline metrics: input=" << pipelineMetrics.inputAccessUnits
+              << " decoded=" << pipelineMetrics.decodedFrames
+              << " published=" << pipelineMetrics.publishedFrames
+              << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
+              << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
+    mediaPipeline->Stop();
+  }
   SetConsoleCtrlHandler(ConsoleControlHandler, FALSE);
   return 0;
 }
