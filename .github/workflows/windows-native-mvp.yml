@@ -40,6 +40,12 @@ jobs:
             if ($null -ne $resolved) { $vcpkg = $resolved.Source }
           }
           if (-not (Test-Path -LiteralPath $vcpkg)) {
+            $visualStudioRoot = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022'
+            $resolved = Get-ChildItem -LiteralPath $visualStudioRoot -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
+              Select-Object -First 1
+            if ($null -ne $resolved) { $vcpkg = $resolved.FullName }
+          }
+          if (-not (Test-Path -LiteralPath $vcpkg)) {
             "vcpkg executable not found under $vcpkgRoot or PATH" | Set-Content -LiteralPath $log
             Get-Content -LiteralPath $log
             throw "vcpkg executable not found under $vcpkgRoot or PATH"
