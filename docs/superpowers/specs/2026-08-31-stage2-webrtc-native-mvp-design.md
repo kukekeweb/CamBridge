@@ -2,14 +2,11 @@
 
 ## Scope and gate
 
-This document starts only after the synthetic native gate
-passed: the current Media Source loaded by the restarted Frame Server delivered
-120 NV12 samples to a Media Foundation capture client. WebRTC sender, receiver,
-decoder, D3D11 preview, and Virtual Camera behavior are not changed by this
-document. The existing Web Stage 1 camera probe and the Synthetic Virtual Camera
-gate remain regression baselines. The first implementation slice below is now
-present as an opt-in libdatachannel API/SDP wiring target; the LAN interop and
-media receive gates remain open.
+This document starts only after the synthetic native gate passed: the current
+Media Source loaded by the restarted Frame Server delivered 120 NV12 samples to
+a Media Foundation capture client. That gate is now a regression baseline. The
+first native decoder boundary is also present and has a fixture-level probe, but
+live Safari media reception and receiver-to-IPC wiring remain open.
 
 The first network milestone is:
 
@@ -192,12 +189,15 @@ Implementation status at this revision:
 - Gate 2 receiver state/SDP policy core: PASS.
 - Gate 2 libdatachannel opt-in API/SDP wiring: PASS with v0.24.5 package;
   Answer callback is observed in a local test.
+- Gate 4 decoder boundary: the Media Foundation H.264-to-NV12 adapter builds,
+  starts on this host, records the selected transform, and produces NV12 frames
+  from a valid yuv420p Annex-B fixture. This is a decoder contract/fixture
+  result, not proof of 60fps live WebRTC decode or hardware acceleration.
 - Gate 5 latest-frame publisher contract: PASS in an isolated native test;
   decoded-NV12 handoff and invalid-frame rejection are covered. It is not yet
-  connected to the WebRTC receiver or decoder.
+  connected to the WebRTC receiver.
 - Safari ICE/DTLS/SRTP and H.264 RTP receive: not started.
-- Media Foundation decoder, receiver-to-IPC wiring, and integrated network
-  path: not started.
+- Receiver-to-IPC wiring and integrated network path: not started.
 
 Acceptance for this Stage 2 design's implementation is not claimed until:
 

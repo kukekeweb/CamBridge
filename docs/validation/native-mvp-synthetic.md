@@ -301,15 +301,20 @@ Video input count: 0
 - Media Source stream-announcement event contract
 - Publisher/IPC readiness output and installed IPC probe
 
-未実装:
+未完了:
 
-- libdatachannel receiver
-- WSS signaling
-- H.264 RTP depacketization
-- Media Foundation H.264 decode
+- Safariとのlibdatachannel ICE/DTLS/SRTP接続
+- 実H.264 RTP受信のend-to-end確認
 - decoded NV12 publish integration
 - D3D11 preview
 - Discord acceptance
+
+実装済みだがlive接続未確認:
+
+- libdatachannel receiver adapter
+- WSS signaling wrapper
+- H.264 RTP depacketizer fixture boundary
+- Media Foundation H.264-to-NV12 decoder boundary
 
 従って、Native MVPおよびStage 2合格とは判定しない。
 

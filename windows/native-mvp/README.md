@@ -15,8 +15,12 @@ Synthetic NV12 1920x1080@60
 The shared-memory mapping is a bounded two-slot latest-frame buffer. A consumer that falls behind observes the newest sequence and does not drain an old frame queue. Named events are notifications only; video is not sent through a Named Pipe.
 
 The current source tree contains the IPC contract, synthetic producer, Custom Media
-Source DLL, registration manager, and a Media Foundation capture probe. WebRTC,
-H.264 RTP receive, and H.264 decode are later milestones and are not implemented yet.
+Source DLL, registration manager, and a Media Foundation capture probe. The
+dependency-free receiver/session core, the opt-in libdatachannel adapter, H.264
+RTP depacketizer fixtures, and the Media Foundation H.264-to-NV12 decoder
+boundary are also present. Live Safari WebRTC reception, decoder wiring, and
+integrated IPC publication remain open and must not be inferred from the unit
+or fixture tests.
 
 The dependency-free `receiver/receiver_session.*` core now provides the first
 native receiver boundary: one-session lifecycle, Safari Offer validation for a
@@ -46,12 +50,14 @@ so the native peer is ready for the browser Offer:
 
 `--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
 is restricted to an explicit local probe. This executable does not yet decode
-H.264 or consume network frames. The independent
+H.264 access units or publish network frames. The independent
 `receiver/latest_frame_publisher.*` boundary accepts a decoded `Nv12Frame` and
-publishes it through the existing shared-memory contract; it is unit-tested but
-is not wired to the receiver until the decoder boundary is implemented. The
-probe therefore does not yet update the shared-memory frame provider from
-WebRTC or change the Virtual Camera. A successful build or signaling loopback
+publishes it through the existing shared-memory contract; it is unit-tested.
+The `receiver/h264_decoder.*` boundary independently converts valid H.264 access
+units to NV12 and records the selected Media Foundation transform, but it is not
+yet wired to the receiver or publisher. The probe therefore does not yet update
+the shared-memory frame provider from WebRTC or change the Virtual Camera. A
+successful build or signaling loopback
 test must not be reported as Safari ICE/DTLS/SRTP or media-receive success.
 
 ## Virtual Camera installation boundary
@@ -128,8 +134,9 @@ forever. A successful gate requires at least 120 samples.
 The manager checks the actual Windows build number (not the ProductName string) and
 requires build 22000 or newer. `--machine` writes HKLM and therefore requires UAC;
 do not use it as the normal startup path. The current implementation records the
-per-user result and does not claim live Frame Server registration until a capture
-client can enumerate and open the camera.
+per-user result and the installed synthetic capture gate can enumerate and open
+the camera for 120 NV12 samples. This does not claim live WebRTC or Discord
+acceptance.
 
 The Media Source is designed for the separate Frame Server process boundary. It reads
 the latest NV12 frame from the fixed shared-memory mapping and does not access the
