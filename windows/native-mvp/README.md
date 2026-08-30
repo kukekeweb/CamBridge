@@ -26,6 +26,9 @@ does not open a PeerConnection or receive media. The opt-in
 recv-only H.264 track setup, validated Offer application, Answer callback, and
 H.264 RTP depacketizer wiring. It deliberately does not claim Safari ICE/DTLS/
 SRTP interoperability, received H.264 access units, decoding, or IPC output.
+The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
+`hello`/`offer`/`answer`/`ice` boundary; they are tested without a live Safari
+peer and do not yet constitute an interoperability result.
 
 ## Virtual Camera installation boundary
 

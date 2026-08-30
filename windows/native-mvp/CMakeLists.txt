@@ -96,16 +96,39 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
 
   add_library(cambridge_libdatachannel_receiver STATIC
     receiver/libdatachannel_receiver.cpp
+    receiver/native_signaling_session.cpp
+    receiver/native_signaling_websocket.cpp
+    receiver/signaling_protocol.cpp
   )
   target_include_directories(cambridge_libdatachannel_receiver PUBLIC receiver)
   target_compile_features(cambridge_libdatachannel_receiver PUBLIC cxx_std_20)
+  find_package(nlohmann_json CONFIG REQUIRED)
   target_link_libraries(cambridge_libdatachannel_receiver
-    PUBLIC cambridge_receiver_core LibDataChannel::LibDataChannel)
+    PUBLIC cambridge_receiver_core LibDataChannel::LibDataChannel
+           nlohmann_json::nlohmann_json)
 
   add_executable(cambridge_libdatachannel_receiver_tests
     tests/libdatachannel_receiver_tests.cpp
   )
   target_link_libraries(cambridge_libdatachannel_receiver_tests
+    PRIVATE cambridge_libdatachannel_receiver)
+
+  add_executable(cambridge_signaling_protocol_tests
+    tests/signaling_protocol_tests.cpp
+  )
+  target_link_libraries(cambridge_signaling_protocol_tests
+    PRIVATE cambridge_libdatachannel_receiver)
+
+  add_executable(cambridge_native_signaling_session_tests
+    tests/native_signaling_session_tests.cpp
+  )
+  target_link_libraries(cambridge_native_signaling_session_tests
+    PRIVATE cambridge_libdatachannel_receiver)
+
+  add_executable(cambridge_native_signaling_websocket_tests
+    tests/native_signaling_websocket_tests.cpp
+  )
+  target_link_libraries(cambridge_native_signaling_websocket_tests
     PRIVATE cambridge_libdatachannel_receiver)
 endif()
 
@@ -121,4 +144,10 @@ add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_sessio
 if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   add_test(NAME cambridge_libdatachannel_receiver_tests
     COMMAND cambridge_libdatachannel_receiver_tests)
+  add_test(NAME cambridge_signaling_protocol_tests
+    COMMAND cambridge_signaling_protocol_tests)
+  add_test(NAME cambridge_native_signaling_session_tests
+    COMMAND cambridge_native_signaling_session_tests)
+  add_test(NAME cambridge_native_signaling_websocket_tests
+    COMMAND cambridge_native_signaling_websocket_tests)
 endif()

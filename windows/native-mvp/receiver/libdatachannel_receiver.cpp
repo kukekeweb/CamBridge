@@ -126,7 +126,10 @@ bool LibDataChannelReceiver::AddRemoteCandidate(const std::string& candidate,
 }
 
 void LibDataChannelReceiver::Close() {
-  if (impl_ && impl_->peerConnection) impl_->peerConnection->close();
+  if (impl_ && impl_->peerConnection) {
+    impl_->peerConnection->resetCallbacks();
+    impl_->peerConnection->close();
+  }
   impl_.reset();
   if (session_.state() == ReceiverState::Connected) session_.MarkDisconnected();
 }

@@ -26,7 +26,8 @@ Status: complete. The same-origin WSS broker and six-test server suite are in
 
 Status: receiver state/SDP policy core is complete. The opt-in libdatachannel
 adapter compiles against the pinned vcpkg manifest and produces an Answer in its
-local test; it does not yet open a Safari session.
+local test; the NativeSignalingSession and WSS transport wrapper now bind the
+same local JSON contract. They do not yet open a Safari session.
 
 ## Phase 3: Safari H.264 interop probe
 
