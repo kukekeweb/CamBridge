@@ -111,7 +111,7 @@ if exist "%IPC_PROBE%" (
   set "IPC_PROBE_EXIT=2"
 )
 if exist "%PROBE%" (
-  echo Running bounded capture probe (maximum 10 seconds)...
+  echo Running bounded capture probe - maximum 10 seconds...
   "%PROBE%"
   set "PROBE_EXIT=!ERRORLEVEL!"
 ) else (
