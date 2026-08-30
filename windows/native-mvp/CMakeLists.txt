@@ -77,6 +77,17 @@ target_include_directories(cambridge_diagnostic_event_trace_tests PRIVATE virtua
 target_compile_definitions(cambridge_diagnostic_event_trace_tests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(cambridge_diagnostic_event_trace_tests PRIVATE mfplat mfuuid ole32 shlwapi)
 
+add_library(cambridge_receiver_core STATIC
+  receiver/receiver_session.cpp
+)
+target_include_directories(cambridge_receiver_core PUBLIC receiver)
+target_compile_features(cambridge_receiver_core PUBLIC cxx_std_20)
+
+add_executable(cambridge_receiver_session_tests
+  tests/receiver_session_tests.cpp
+)
+target_link_libraries(cambridge_receiver_session_tests PRIVATE cambridge_receiver_core)
+
 enable_testing()
 add_test(NAME cambridge_frame_ipc_tests COMMAND cambridge_frame_ipc_tests)
 add_test(NAME cambridge_media_source_tests
@@ -85,3 +96,4 @@ add_test(NAME cambridge_media_source_tests_provided_allocator
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source> --provided-allocator)
 add_test(NAME cambridge_allocator_identity_tests COMMAND cambridge_allocator_identity_tests)
 add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnostic_event_trace_tests)
+add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)

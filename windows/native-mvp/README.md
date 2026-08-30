@@ -18,6 +18,12 @@ The current source tree contains the IPC contract, synthetic producer, Custom Me
 Source DLL, registration manager, and a Media Foundation capture probe. WebRTC,
 H.264 RTP receive, and H.264 decode are later milestones and are not implemented yet.
 
+The dependency-free `receiver/receiver_session.*` core now provides the first
+native receiver boundary: one-session lifecycle, Safari Offer validation for a
+single sending H.264 video m-line, and private-IPv4 host-candidate policy. It
+does not open a PeerConnection or receive media; the libdatachannel adapter is a
+separate later gate.
+
 ## Virtual Camera installation boundary
 
 `cambridge_virtual_camera_manager` deliberately separates source registration from
