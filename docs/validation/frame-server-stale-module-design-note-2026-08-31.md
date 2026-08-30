@@ -19,6 +19,12 @@ Before interpreting a Media Source failure, collect all of the following:
 
 The diagnostic log must identify the DLL-load PID. A run is not considered a current-build regression until the diagnostic PID and installed DLL identity are correlated.
 
+The post-restart bounded repeat also confirmed the recovery state: with the
+installed Program Files artifact in place, a finite synthetic publisher and the
+capture probe completed with `Samples received: 120`, SourceReader type
+`NV12 1920x1080 60/1`, and clean source shutdown. No new stale-module symptom
+was observed during that repeat.
+
 ## When a restart is needed
 
 A safe Frame Server restart is needed when the registered DLL or its binary identity changed while the existing Frame Server process is still alive and the process has not demonstrably loaded the new identity. It is also needed when the log PID predates the installed artifact change.

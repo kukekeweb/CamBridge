@@ -282,6 +282,13 @@ Video input count: 0
 
 ## Scope status
 
+> Historical note: the initial sections below preserve the earlier pre-restart
+> and pre-gate observations. The current authoritative result is the bounded
+> PASS recorded in
+> [media-source-event-trace-2026-08-31.md](media-source-event-trace-2026-08-31.md).
+> The historical `E_NOINTERFACE`/0-sample observations must not be read as the
+> current installed-state result.
+
 実装済み:
 
 - bounded latest-frame NV12 shared memory

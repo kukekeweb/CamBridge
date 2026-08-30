@@ -115,3 +115,35 @@ The current real-machine gate is **PASS** for the bounded synthetic capture cont
 - Residual synthetic publisher/capture probe processes: none observed
 
 This gate does not claim a 10-minute hardware or WebRTC result. It is the isolated Synthetic Publisher → IPC/Media Source → Virtual Camera → SourceReader regression gate.
+
+## Repeat verification from the installed artifact
+
+After the native receiver probe commit, the same bounded gate was run once more
+without changing the Frame Server or installer. The installed Program Files
+artifacts were present and the CamBridge camera was enumerated before the test.
+The synthetic publisher ran with a finite 15-second lifetime (PID `15320`) and
+exited normally after the probe.
+
+The installed capture probe produced:
+
+```text
+Video input count: 1
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+sample[1]: duration=166666, bufferBytes=3110400
+Samples received: 120
+IMFMediaSource::Shutdown: S_OK
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+```
+
+The bounded child diagnostic was written to
+`C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-14920-38646750.log`.
+The probe process and the finite publisher both terminated normally; no
+residual CamBridge synthetic process was observed. This independently
+reproduces the native synthetic gate with the current installed artifact.
+
+The first `STREAMTICK` is therefore treated as an expected initial SourceReader
+notification, not as a sample-delivery failure. The current gate remains PASS.
