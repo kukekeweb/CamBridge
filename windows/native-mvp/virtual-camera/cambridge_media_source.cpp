@@ -168,7 +168,10 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   hr = sampleAllocator_->InitializeSampleAllocator(10, mediaType_.Get());
   LogAllocatorState(L"InitializeSampleAllocator", hr, mediaType_.Get());
   if (FAILED(hr)) return hr;
-  nextTimestamp100ns_ = 0;
+  // Frame Server expects sample timestamps in the Media Foundation system-time
+  // domain. IPC timestamps are producer-relative and must not be forwarded as
+  // presentation timestamps (the first synthetic sample would otherwise be 0).
+  nextTimestamp100ns_ = MFGetSystemTime();
   state_ = MF_STREAM_STATE_RUNNING;
   hr = events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);
   LogControlEvent(L"CamBridgeMediaStream", L"Start.end", hr);
@@ -319,7 +322,6 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   if (readLatest && frame.width == width_ &&
       frame.height == height_ && frame.stride == stride_ && frame.bytes.size() == bytes) {
     std::memcpy(data, frame.bytes.data(), bytes);
-    nextTimestamp100ns_ = frame.timestamp100ns;
     lastSequence_ = frame.sequence;
   }
   hr = buffer->Unlock();

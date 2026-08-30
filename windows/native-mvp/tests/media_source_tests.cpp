@@ -269,6 +269,13 @@ int wmain(int argc, wchar_t** argv) {
                << static_cast<unsigned long>(hr) << L"\n";
     return 1;
   }
+  const LONGLONG now = MFGetSystemTime();
+  const LONGLONG timestampDelta = sampleTime >= now ? sampleTime - now : now - sampleTime;
+  if (timestampDelta > 5 * 10000000LL) {
+    std::wcerr << L"Media Stream sample timestamp is not in MF system-time domain: time="
+               << sampleTime << L" now=" << now << L" delta=" << timestampDelta << L"\n";
+    return 1;
+  }
   std::wcout << L"Media Stream sample test: time=" << sampleTime
              << L" duration=" << sampleDuration << L" bytes=" << sampleBytes << L"\n";
   std::wcout << L"Media Source test: types=" << typeCount

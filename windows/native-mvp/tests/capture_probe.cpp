@@ -10,7 +10,10 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -76,6 +79,94 @@ void PrintHr(const wchar_t* label, HRESULT hr) {
   if (FAILED(hr)) std::wcout << L"; " << HrText(hr);
   std::wcout << L")\n";
 }
+
+std::wstring SourceReaderFlags(DWORD flags) {
+  std::vector<std::wstring> names;
+  const auto add = [&](DWORD flag, const wchar_t* name) {
+    if ((flags & flag) != 0) names.emplace_back(name);
+  };
+  add(MF_SOURCE_READERF_ERROR, L"MF_SOURCE_READERF_ERROR");
+  add(MF_SOURCE_READERF_ENDOFSTREAM, L"MF_SOURCE_READERF_ENDOFSTREAM");
+  add(MF_SOURCE_READERF_NEWSTREAM, L"MF_SOURCE_READERF_NEWSTREAM");
+  add(MF_SOURCE_READERF_NATIVEMEDIATYPECHANGED,
+      L"MF_SOURCE_READERF_NATIVEMEDIATYPECHANGED");
+  add(MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED,
+      L"MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED");
+  add(MF_SOURCE_READERF_STREAMTICK, L"MF_SOURCE_READERF_STREAMTICK");
+  add(MF_SOURCE_READERF_ALLEFFECTSREMOVED, L"MF_SOURCE_READERF_ALLEFFECTSREMOVED");
+  if (names.empty()) return L"none";
+  std::wstring result;
+  for (std::size_t i = 0; i < names.size(); ++i) {
+    if (i != 0) result += L", ";
+    result += names[i];
+  }
+  return result;
+}
+
+class TeeWideBuffer final : public std::wstreambuf {
+ public:
+  TeeWideBuffer(std::wstreambuf* first, std::wstreambuf* second)
+      : first_(first), second_(second) {}
+
+ protected:
+  int_type overflow(int_type character) override {
+    if (traits_type::eq_int_type(character, traits_type::eof())) return traits_type::not_eof(character);
+    const int_type firstResult = first_->sputc(traits_type::to_char_type(character));
+    const int_type secondResult = second_->sputc(traits_type::to_char_type(character));
+    if (traits_type::eq_int_type(firstResult, traits_type::eof()) ||
+        traits_type::eq_int_type(secondResult, traits_type::eof())) {
+      return traits_type::eof();
+    }
+    return character;
+  }
+
+  std::streamsize xsputn(const wchar_t* text, std::streamsize count) override {
+    const auto firstCount = first_->sputn(text, count);
+    const auto secondCount = second_->sputn(text, count);
+    return std::min(firstCount, secondCount);
+  }
+
+  int sync() override {
+    const int firstResult = first_->pubsync();
+    const int secondResult = second_->pubsync();
+    return firstResult == 0 && secondResult == 0 ? 0 : -1;
+  }
+
+ private:
+  std::wstreambuf* first_;
+  std::wstreambuf* second_;
+};
+
+class ChildDiagnosticRedirect final {
+ public:
+  explicit ChildDiagnosticRedirect(const std::wstring& path) {
+    if (path.empty()) return;
+    file_.open(path, std::ios::out | std::ios::trunc);
+    if (!file_.is_open()) return;
+    originalOut_ = std::wcout.rdbuf();
+    originalErr_ = std::wcerr.rdbuf();
+    tee_ = std::make_unique<TeeWideBuffer>(originalOut_, file_.rdbuf());
+    std::wcout.rdbuf(tee_.get());
+    std::wcerr.rdbuf(tee_.get());
+  }
+
+  ~ChildDiagnosticRedirect() {
+    if (originalOut_ == nullptr) return;
+    std::wcout.flush();
+    std::wcerr.flush();
+    std::wcout.rdbuf(originalOut_);
+    std::wcerr.rdbuf(originalErr_);
+  }
+
+  ChildDiagnosticRedirect(const ChildDiagnosticRedirect&) = delete;
+  ChildDiagnosticRedirect& operator=(const ChildDiagnosticRedirect&) = delete;
+
+ private:
+  std::wofstream file_;
+  std::unique_ptr<TeeWideBuffer> tee_;
+  std::wstreambuf* originalOut_ = nullptr;
+  std::wstreambuf* originalErr_ = nullptr;
+};
 
 void PrintMediaType(const wchar_t* label, IMFMediaType* type) {
   if (type == nullptr) {
@@ -145,8 +236,9 @@ class ChildRuntime final {
   bool mfStarted_ = false;
 };
 
-int RunCaptureChild() {
+int RunCaptureChild(const std::wstring& diagnosticFile) {
   std::wcout.setf(std::ios::unitbuf);
+  ChildDiagnosticRedirect diagnosticRedirect(diagnosticFile);
   ChildRuntime runtime;
   HRESULT hr = runtime.Initialize();
   if (FAILED(hr)) return 1;
@@ -158,6 +250,7 @@ int RunCaptureChild() {
   IMFActivate** devices = nullptr;
   UINT32 count = 0;
   if (SUCCEEDED(hr)) hr = MFEnumDeviceSources(attributes.Get(), &devices, &count);
+  PrintHr(L"MFEnumDeviceSources", hr);
   std::wcout << L"Capture child video input count: " << count << L"\n";
   bool found = false;
   int frames = 0;
@@ -188,8 +281,10 @@ int RunCaptureChild() {
     if (SUCCEEDED(hr)) {
       ComPtr<IMFAttributes> readerAttributes;
       hr = MFCreateAttributes(&readerAttributes, 2);
+      PrintHr(L"    MFCreateAttributes(reader)", hr);
       if (SUCCEEDED(hr)) hr = readerAttributes->SetUINT32(
           MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, FALSE);
+      PrintHr(L"    IMFAttributes::SetUINT32(ENABLE_VIDEO_PROCESSING=false)", hr);
       ComPtr<IMFSourceReader> reader;
       if (SUCCEEDED(hr)) hr = MFCreateSourceReaderFromMediaSource(
           source.Get(), readerAttributes.Get(), &reader);
@@ -223,7 +318,7 @@ int RunCaptureChild() {
           if (attempt < 3 || FAILED(hr)) {
             PrintHr(L"    IMFSourceReader::ReadSample", hr);
             std::wcout << L"        stream=" << actualStream << L" flags=0x" << std::hex << flags
-                       << std::dec << L" timestamp=" << timestamp
+                       << std::dec << L" (" << SourceReaderFlags(flags) << L") timestamp=" << timestamp
                        << L" sample=" << (sample ? L"yes" : L"no") << L"\n";
           }
           if (FAILED(hr)) break;
@@ -251,7 +346,8 @@ int RunCaptureChild() {
         PrintHr(L"    Last ReadSample", hr);
         std::wcout << L"    Samples received: " << frames << L"\n";
       }
-      (void)source->Shutdown();
+      const HRESULT shutdownHr = source->Shutdown();
+      PrintHr(L"    IMFMediaSource::Shutdown", shutdownHr);
     }
     devices[i]->Release();
     for (UINT32 remaining = i + 1; remaining < count; ++remaining) {
@@ -307,15 +403,34 @@ bool IsCamBridgePresent() {
   return found;
 }
 
-bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOutput) {
-  if (childExitCode == nullptr || childOutput == nullptr) return false;
+std::wstring MakeChildDiagnosticPath() {
+  wchar_t tempPath[MAX_PATH]{};
+  const DWORD length = GetTempPathW(ARRAYSIZE(tempPath), tempPath);
+  if (length == 0 || length >= ARRAYSIZE(tempPath)) return {};
+  return std::wstring(tempPath) + L"CamBridge-capture-child-" +
+         std::to_wstring(GetCurrentProcessId()) + L"-" +
+         std::to_wstring(GetTickCount64()) + L".log";
+}
+
+std::string ReadBinaryFile(const std::wstring& path) {
+  if (path.empty()) return {};
+  std::ifstream file(path, std::ios::binary);
+  if (!file.is_open()) return {};
+  return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOutput,
+                     std::wstring* childDiagnosticPath) {
+  if (childExitCode == nullptr || childOutput == nullptr || childDiagnosticPath == nullptr) return false;
   *childExitCode = 1;
   childOutput->clear();
+  *childDiagnosticPath = MakeChildDiagnosticPath();
   wchar_t modulePath[MAX_PATH]{};
   const DWORD length = GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath));
   if (length == 0 || length >= ARRAYSIZE(modulePath)) return false;
   std::wstring commandLine = L"\"" + std::wstring(modulePath, length) +
-                             L"\" --capture-child";
+                             L"\" --capture-child --diagnostic-file \"" +
+                             *childDiagnosticPath + L"\"";
   std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
   mutableCommand.push_back(L'\0');
   STARTUPINFOW startup{};
@@ -358,6 +473,8 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOu
   while (ReadFile(outputRead, buffer, sizeof(buffer), &bytesRead, nullptr) && bytesRead != 0) {
     childOutput->append(buffer, bytesRead);
   }
+  const std::string fileOutput = ReadBinaryFile(*childDiagnosticPath);
+  if (!fileOutput.empty()) *childOutput = fileOutput;
   CloseHandle(outputRead);
   if (waitResult == WAIT_TIMEOUT) {
     CloseHandle(process.hThread);
@@ -374,15 +491,17 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOu
 int wmain(int argc, wchar_t** argv) {
   std::wcout.setf(std::ios::unitbuf);
   bool child = false;
+  std::wstring diagnosticFile;
   DWORD timeoutMs = kDefaultTimeoutMs;
   for (int i = 1; i < argc; ++i) {
     const std::wstring argument = argv[i];
     if (argument == L"--capture-child") child = true;
+    else if (argument == L"--diagnostic-file" && i + 1 < argc) diagnosticFile = argv[++i];
     else if (argument == L"--timeout-ms" && i + 1 < argc) {
       timeoutMs = std::max<DWORD>(1, _wtoi(argv[++i]));
     }
   }
-  if (child) return RunCaptureChild();
+  if (child) return RunCaptureChild(diagnosticFile);
 
   const bool cambridgeFound = IsCamBridgePresent();
   std::wcout << L"CamBridge camera found: " << (cambridgeFound ? L"YES" : L"NO") << L"\n";
@@ -390,9 +509,14 @@ int wmain(int argc, wchar_t** argv) {
   if (cambridgeFound) {
     DWORD childExitCode = 1;
     std::string childOutput;
-    const bool childCompleted = RunBoundedChild(timeoutMs, &childExitCode, &childOutput);
+    std::wstring childDiagnosticPath;
+    const bool childCompleted = RunBoundedChild(timeoutMs, &childExitCode, &childOutput,
+                                                &childDiagnosticPath);
+    if (!childDiagnosticPath.empty()) {
+      std::wcout << L"Capture child diagnostic file: " << childDiagnosticPath << L"\n";
+    }
     if (!childOutput.empty()) {
-      std::cout << "Capture child diagnostics:\n" << childOutput;
+            std::cout << "Capture child diagnostics:\n" << childOutput;
       if (childOutput.back() != '\n') std::cout << '\n';
     }
     if (!childCompleted) {
