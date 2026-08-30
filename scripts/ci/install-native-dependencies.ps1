@@ -90,43 +90,50 @@ try {
     }
     Set-Content -LiteralPath $LogPath -Value 'CamBridge native dependency diagnostics'
 
+    $forceBootstrap = $env:GITHUB_ACTIONS -eq 'true' -or
+        $env:CAMBRIDGE_FORCE_VCPKG_BOOTSTRAP -eq '1'
     $initialRoot = $env:VCPKG_INSTALLATION_ROOT
     if ([string]::IsNullOrWhiteSpace($initialRoot)) {
         $initialRoot = 'C:\vcpkg'
     }
     Add-DiagnosticLine "initial vcpkg root: $initialRoot"
 
-    $vcpkg = Join-Path $initialRoot 'vcpkg.exe'
-    if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
-        $command = Get-Command vcpkg.exe -ErrorAction SilentlyContinue
-        if ($null -ne $command) {
-            $vcpkg = $command.Source
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
-        $roots = @()
-        $programFiles = [Environment]::GetEnvironmentVariable('ProgramFiles')
-        $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
-        if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
-            $roots += Join-Path $programFiles 'Microsoft Visual Studio\2022'
-        }
-        if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
-            $roots += Join-Path $programFilesX86 'Microsoft Visual Studio\2022'
+    $vcpkg = $null
+    if ($forceBootstrap) {
+        Add-DiagnosticLine 'GitHub/forced bootstrap mode: runner-provided vcpkg will not be used'
+    } else {
+        $vcpkg = Join-Path $initialRoot 'vcpkg.exe'
+        if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
+            $command = Get-Command vcpkg.exe -ErrorAction SilentlyContinue
+            if ($null -ne $command) {
+                $vcpkg = $command.Source
+            }
         }
 
-        foreach ($root in ($roots | Where-Object { Test-Path -LiteralPath $_ -PathType Container })) {
-            Add-DiagnosticLine "searching: $root"
-            $found = Get-ChildItem -LiteralPath $root -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-            if ($null -ne $found) {
-                $vcpkg = $found.FullName
-                break
+        if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
+            $roots = @()
+            $programFiles = [Environment]::GetEnvironmentVariable('ProgramFiles')
+            $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+            if (-not [string]::IsNullOrWhiteSpace($programFiles)) {
+                $roots += Join-Path $programFiles 'Microsoft Visual Studio\2022'
+            }
+            if (-not [string]::IsNullOrWhiteSpace($programFilesX86)) {
+                $roots += Join-Path $programFilesX86 'Microsoft Visual Studio\2022'
+            }
+
+            foreach ($root in ($roots | Where-Object { Test-Path -LiteralPath $_ -PathType Container })) {
+                Add-DiagnosticLine "searching: $root"
+                $found = Get-ChildItem -LiteralPath $root -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
+                    Select-Object -First 1
+                if ($null -ne $found) {
+                    $vcpkg = $found.FullName
+                    break
+                }
             }
         }
     }
 
-    if (-not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
+    if ($forceBootstrap -or -not (Test-Path -LiteralPath $vcpkg -PathType Leaf)) {
         $manifestPath = Join-Path (Get-Location) 'vcpkg.json'
         if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
             throw "vcpkg executable not found and manifest is missing: $manifestPath"
