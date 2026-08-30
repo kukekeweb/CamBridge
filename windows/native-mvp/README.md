@@ -21,8 +21,11 @@ H.264 RTP receive, and H.264 decode are later milestones and are not implemented
 The dependency-free `receiver/receiver_session.*` core now provides the first
 native receiver boundary: one-session lifecycle, Safari Offer validation for a
 single sending H.264 video m-line, and private-IPv4 host-candidate policy. It
-does not open a PeerConnection or receive media; the libdatachannel adapter is a
-separate later gate.
+does not open a PeerConnection or receive media. The opt-in
+`receiver/libdatachannel_receiver.*` adapter now covers PeerConnection creation,
+recv-only H.264 track setup, validated Offer application, Answer callback, and
+H.264 RTP depacketizer wiring. It deliberately does not claim Safari ICE/DTLS/
+SRTP interoperability, received H.264 access units, decoding, or IPC output.
 
 ## Virtual Camera installation boundary
 
@@ -114,6 +117,23 @@ cmake -S windows/native-mvp -B build/native-mvp -G "Visual Studio 17 2022" -A x6
 cmake --build build/native-mvp --config Release
 ctest --test-dir build/native-mvp -C Release --output-on-failure
 ```
+
+The libdatachannel adapter is an opt-in target so the baseline build remains
+dependency-free. With a vcpkg checkout matching the repository `vcpkg.json`:
+
+```powershell
+vcpkg install --triplet x64-windows --clean-after-build
+cmake -S windows/native-mvp -B build/native-mvp-libdatachannel `
+  -G "Visual Studio 17 2022" -A x64 `
+  -DCMAKE_TOOLCHAIN_FILE=<vcpkg>\scripts\buildsystems\vcpkg.cmake `
+  -DCAMBRIDGE_ENABLE_LIBDATACHANNEL=ON
+cmake --build build/native-mvp-libdatachannel --config Release
+ctest --test-dir build/native-mvp-libdatachannel -C Release --output-on-failure
+```
+
+The adapter build must not be used as evidence of Safari interoperation until
+the separate LAN probe passes. It also does not change the existing Virtual
+Camera registration or Media Source process boundary.
 
 The build itself does not change the registry, firewall, or camera registration.
 Installation commands above are explicit runtime operations and should be tested

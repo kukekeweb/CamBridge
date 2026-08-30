@@ -21,22 +21,46 @@ This is a dependency/toolchain gap, not evidence of Safari incompatibility. No
 libdatachannel source, generated build tree, OpenSSL binary, or copied third-party
 artifact was added to CamBridge.
 
+## Reproducible vcpkg package probe
+
+The same Windows host was then tested with the vcpkg tool repository at commit
+`32017522e1065c6b4547d649711faa01ab351dc9`:
+
+```powershell
+vcpkg install libdatachannel[ws,srtp]:x64-windows --clean-after-build
+cmake -S windows/native-mvp -B build/native-mvp-libdatachannel `
+  -G "Visual Studio 17 2022" -A x64 `
+  -DCMAKE_TOOLCHAIN_FILE=<vcpkg>\scripts\buildsystems\vcpkg.cmake `
+  -DCAMBRIDGE_ENABLE_LIBDATACHANNEL=ON
+cmake --build build/native-mvp-libdatachannel --config Release `
+  --target cambridge_libdatachannel_receiver_tests
+ctest --test-dir build/native-mvp-libdatachannel -C Release `
+  -R cambridge_libdatachannel_receiver_tests --output-on-failure
+```
+
+This opt-in build resolved libdatachannel `0.24.5`, OpenSSL `3.6.4`, and the
+media-enabled CMake target. The adapter compiled and its two tests passed. The
+default build remains dependency-free because `CAMBRIDGE_ENABLE_LIBDATACHANNEL`
+defaults to `OFF`. The package binaries remain outside the repository; the
+repository contains only the manifest, source adapter, and test.
+
 The v0.9.4 CMake project uses OpenSSL by default, libjuice for ICE, usrsctp, and
-optionally LibSRTP for media transport. The future CamBridge dependency setup
-must pin these inputs and record their licenses before enabling the adapter in
-the production build.
+optionally LibSRTP for media transport. The current opt-in package setup pins
+the vcpkg registry baseline and records libdatachannel's MPL-2.0 license in the
+package metadata. A production bundle still needs a separate third-party
+notices/artifact packaging review.
 
 ## Current CamBridge state
 
 The native receiver core remains dependency-free and is tested independently.
-It validates the state/SDP/candidate boundary that the future libdatachannel
-adapter will call. The actual PeerConnection, DTLS/SRTP, H.264 RTP callback, and
-Safari interoperability probe are not claimed as implemented.
+The opt-in adapter now constructs a real libdatachannel PeerConnection, installs
+a recv-only H.264 track and depacketizer, accepts a validated Offer, and observes
+the generated Answer callback. This is an API/linkage and SDP wiring gate only;
+DTLS/SRTP, H.264 RTP callback, decoder output, and Safari interoperability are
+not claimed as implemented.
 
 ## Next dependency gate
 
-Provide a reproducible Windows x64 development dependency root containing
-OpenSSL headers/import libraries and, for media-enabled builds, LibSRTP. Then
-configure a separate opt-in CMake build for the pinned libdatachannel commit.
-The default CamBridge build must remain green when that optional dependency is
-absent.
+For a reproducible Windows x64 build, install the manifest using the documented
+vcpkg baseline, then configure the separate opt-in CMake build. The default
+CamBridge build remains green when that optional dependency is absent.

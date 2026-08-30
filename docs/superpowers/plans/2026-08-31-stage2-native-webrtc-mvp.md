@@ -1,6 +1,6 @@
 # Stage 2 Native WebRTC MVP implementation plan draft
 
-This plan is design-only until the Stage 2 design draft is reviewed. It assumes
+This plan proceeds incrementally after the Stage 2 design draft was reviewed. It assumes
 the Native Synthetic Virtual Camera gate remains green and does not alter that
 baseline.
 
@@ -13,6 +13,9 @@ baseline.
   close, and reconnect.
 - Verify no signaling message contains media payloads or external endpoints.
 
+Status: complete. The same-origin WSS broker and six-test server suite are in
+`windows/stage1-server/`.
+
 ## Phase 2: native receiver skeleton
 
 - Pin and document the libdatachannel dependency and Windows build method.
@@ -20,6 +23,10 @@ baseline.
 - Bind only the configured LAN/private IPv4 path for the initial probe.
 - Add SDP validation for a single H.264 video m-line and recvonly answer.
 - Add control-path logging for ICE, DTLS, SRTP, RTP, RTCP, and reconnect.
+
+Status: receiver state/SDP policy core is complete. The opt-in libdatachannel
+adapter compiles against the pinned vcpkg manifest and produces an Answer in its
+local test; it does not yet open a Safari session.
 
 ## Phase 3: Safari H.264 interop probe
 

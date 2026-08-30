@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.21)
 
 project(CamBridgeNativeMvp LANGUAGES CXX)
 
+option(CAMBRIDGE_ENABLE_LIBDATACHANNEL
+       "Build the opt-in libdatachannel native receiver adapter" OFF)
+
 if(NOT WIN32)
   message(FATAL_ERROR "CamBridge Native MVP requires Windows")
 endif()
@@ -88,6 +91,24 @@ add_executable(cambridge_receiver_session_tests
 )
 target_link_libraries(cambridge_receiver_session_tests PRIVATE cambridge_receiver_core)
 
+if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
+  find_package(LibDataChannel CONFIG REQUIRED)
+
+  add_library(cambridge_libdatachannel_receiver STATIC
+    receiver/libdatachannel_receiver.cpp
+  )
+  target_include_directories(cambridge_libdatachannel_receiver PUBLIC receiver)
+  target_compile_features(cambridge_libdatachannel_receiver PUBLIC cxx_std_20)
+  target_link_libraries(cambridge_libdatachannel_receiver
+    PUBLIC cambridge_receiver_core LibDataChannel::LibDataChannel)
+
+  add_executable(cambridge_libdatachannel_receiver_tests
+    tests/libdatachannel_receiver_tests.cpp
+  )
+  target_link_libraries(cambridge_libdatachannel_receiver_tests
+    PRIVATE cambridge_libdatachannel_receiver)
+endif()
+
 enable_testing()
 add_test(NAME cambridge_frame_ipc_tests COMMAND cambridge_frame_ipc_tests)
 add_test(NAME cambridge_media_source_tests
@@ -97,3 +118,7 @@ add_test(NAME cambridge_media_source_tests_provided_allocator
 add_test(NAME cambridge_allocator_identity_tests COMMAND cambridge_allocator_identity_tests)
 add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnostic_event_trace_tests)
 add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)
+if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
+  add_test(NAME cambridge_libdatachannel_receiver_tests
+    COMMAND cambridge_libdatachannel_receiver_tests)
+endif()

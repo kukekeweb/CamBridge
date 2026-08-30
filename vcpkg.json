@@ -1,0 +1,11 @@
+{
+  "name": "cambridge-native-mvp",
+  "version-string": "0.1.0",
+  "builtin-baseline": "32017522e1065c6b4547d649711faa01ab351dc9",
+  "dependencies": [
+    {
+      "name": "libdatachannel",
+      "features": ["srtp", "ws"]
+    }
+  ]
+}
