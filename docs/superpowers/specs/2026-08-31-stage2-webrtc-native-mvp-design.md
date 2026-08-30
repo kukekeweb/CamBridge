@@ -200,8 +200,14 @@ Implementation status at this revision:
   connected to the WebRTC receiver.
 - Receiver media pipeline fixture boundary: PASS. A valid H.264 fixture can
   traverse the decoder and publish NV12 into a separate existing IPC mapping;
-  the native receiver CLI is wired to this boundary. No live access unit has
-  yet been received through Safari.
+  the native receiver CLI is wired to this boundary. A native two-peer RTP
+  loopback now also drives the same valid Annex-B fixture through
+  depacketization, Media Foundation decode, and the existing IPC mapping. No
+  live access unit has yet been received through Safari.
+- Gate 5 native network-to-IPC loopback: PASS with a generated 1920x1080@60
+  H.264 fixture. The test covers single-NAL and FU-A RTP packetization,
+  native libdatachannel receive, NV12 decode, and latest-frame IPC readback.
+  It is not Safari interoperability or a sustained live 60fps result.
 - Safari ICE/DTLS/SRTP and H.264 RTP receive: not started.
 - Receiver-to-IPC live network path and integrated network path: not started;
   the fixture-only pipeline boundary is passing as noted above.

@@ -162,6 +162,13 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
   target_link_libraries(cambridge_libdatachannel_loopback_tests
     PRIVATE cambridge_libdatachannel_receiver iphlpapi ws2_32)
 
+  add_executable(cambridge_libdatachannel_pipeline_loopback_tests
+    tests/libdatachannel_pipeline_loopback_tests.cpp
+  )
+  target_link_libraries(cambridge_libdatachannel_pipeline_loopback_tests
+    PRIVATE cambridge_libdatachannel_receiver cambridge_receiver_media_pipeline
+            iphlpapi ws2_32)
+
   add_executable(cambridge_signaling_protocol_tests
     tests/signaling_protocol_tests.cpp
   )
@@ -210,6 +217,8 @@ if(CAMBRIDGE_ENABLE_LIBDATACHANNEL)
     COMMAND cambridge_libdatachannel_receiver_tests)
   add_test(NAME cambridge_libdatachannel_loopback_tests
     COMMAND cambridge_libdatachannel_loopback_tests)
+  add_test(NAME cambridge_libdatachannel_pipeline_loopback_tests
+    COMMAND cambridge_libdatachannel_pipeline_loopback_tests)
   add_test(NAME cambridge_signaling_protocol_tests
     COMMAND cambridge_signaling_protocol_tests)
   add_test(NAME cambridge_native_signaling_session_tests

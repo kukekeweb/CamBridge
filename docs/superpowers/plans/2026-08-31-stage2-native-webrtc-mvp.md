@@ -74,6 +74,8 @@ covered by a native test. The decoder boundary is implemented separately. Both
 accept the existing `Nv12Frame` contract and do not know about WebRTC or Frame
 Server. `ReceiverMediaPipeline` now connects access-unit input to the decoder
 and publisher, and its fixture test reads the published NV12 through a separate
+IPC mapping. An opt-in native RTP pipeline loopback additionally proves that a
+valid H.264 Annex-B fixture can cross RTP/depacketization, decode, and the same
 IPC mapping. Live Safari input remains open.
 
 ## Phase 6: integrated MVP acceptance
