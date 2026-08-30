@@ -31,7 +31,10 @@ local test; the NativeSignalingSession, WSS transport wrapper, and
 The receiver explicitly invokes `gatherLocalCandidates()` after setting its
 Answer because automatic gathering is disabled. A local test now observes a
 non-empty host-candidate callback. The CLI probe prints native receiver state
-and H.264 access-unit metrics, but it has not yet opened a live Safari session.
+and H.264 access-unit metrics, including the selected candidate pair and
+Access Unit byte counter, but it has not yet opened a live Safari session. The
+signaling session also has a bounded explicit restart path that recreates the
+receiver after close and is covered by a unit test.
 
 The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
 and FU-A packets. Real Safari RTP arrival remains a separate interop gate.

@@ -1,6 +1,7 @@
 #include "native_signaling_session.h"
 
 #include <cassert>
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
@@ -55,9 +56,14 @@ void TestHelloAndOfferAnswer() {
 
   std::unique_lock lock(mutex);
   assert(condition.wait_for(lock, std::chrono::seconds(1), [&] { return sent.size() >= 2; }));
+  auto answerIt = std::find_if(sent.begin(), sent.end(), [&](const std::string& message) {
+    SignalingMessage parsed;
+    return ParseSignalingMessage(message, &parsed, &error) &&
+           parsed.type == SignalingMessageType::Answer;
+  });
+  assert(answerIt != sent.end());
   SignalingMessage answer;
-  assert(ParseSignalingMessage(sent.back(), &answer, &error));
-  assert(answer.type == SignalingMessageType::Answer);
+  assert(ParseSignalingMessage(*answerIt, &answer, &error));
   assert(answer.sdp.find("m=video") != std::string::npos);
   assert(session.state() == ReceiverState::OfferReceived);
 }
@@ -72,11 +78,29 @@ void TestIceBeforeOfferIsQueued() {
   assert(session.OnSocketMessage(R"({"version":1,"type":"close","sessionId":"s2"})"));
   assert(session.state() == ReceiverState::WaitingForOffer);
 }
+
+void TestRestartCreatesFreshSessionAfterClose() {
+  NativeSignalingSession session({"s3", "192.168.11.2", 5000});
+  std::vector<std::string> sent;
+  session.SetSendHandler([&](const std::string& message) { sent.push_back(message); });
+  assert(session.Start());
+  assert(session.OnSocketOpen());
+  session.Close();
+  assert(session.Restart("s4"));
+  assert(session.OnSocketOpen());
+  SignalingMessage hello;
+  std::string error;
+  assert(ParseSignalingMessage(sent.back(), &hello, &error));
+  assert(hello.type == SignalingMessageType::Hello);
+  assert(hello.sessionId == "s4");
+  assert(session.state() == ReceiverState::WaitingForOffer);
+}
 }  // namespace
 
 int main() {
   TestHelloAndOfferAnswer();
   TestIceBeforeOfferIsQueued();
+  TestRestartCreatesFreshSessionAfterClose();
   std::cout << "CamBridge native signaling session tests passed\n";
   return 0;
 }

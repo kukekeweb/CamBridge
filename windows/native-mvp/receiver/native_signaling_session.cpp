@@ -8,6 +8,10 @@ namespace cambridge::native::receiver {
 
 NativeSignalingSession::NativeSignalingSession(NativeSignalingSessionConfig config)
     : config_(std::move(config)) {
+  CreateReceiver();
+}
+
+void NativeSignalingSession::CreateReceiver() {
   receiver_ = std::make_unique<LibDataChannelReceiver>(LibDataChannelReceiverConfig{
       config_.sessionId, config_.bindAddress, config_.h264BitrateKbps});
   receiver_->SetLocalDescriptionHandler([this](const std::string& type,
@@ -18,6 +22,7 @@ NativeSignalingSession::NativeSignalingSession(NativeSignalingSessionConfig conf
                                              const std::string& mid) {
     Send(SerializeIce(config_.sessionId, candidate, mid));
   });
+  if (accessUnitHandler_) receiver_->SetAccessUnitHandler(accessUnitHandler_);
 }
 
 NativeSignalingSession::~NativeSignalingSession() { Close(); }
@@ -40,6 +45,19 @@ bool NativeSignalingSession::Start() {
   started_ = true;
   lastError_.clear();
   return true;
+}
+
+bool NativeSignalingSession::Restart(std::string sessionId) {
+  if (sessionId.empty()) return Fail("session id is empty");
+  if (socketOpen_) return Fail("cannot restart while signaling socket is open");
+  if (receiver_) receiver_->Close();
+  pendingIce_.clear();
+  config_.sessionId = std::move(sessionId);
+  started_ = false;
+  socketOpen_ = false;
+  lastError_.clear();
+  CreateReceiver();
+  return Start();
 }
 
 bool NativeSignalingSession::OnSocketOpen() {

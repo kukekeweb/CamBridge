@@ -24,6 +24,10 @@ reception, sustained decoding, or Virtual Camera output from network frames.
   Media Foundation H.264-to-NV12 decoder boundary, and publishes decoded frames
   through the existing latest-frame IPC contract. The native receiver CLI wires
   this path by default and retains `--no-publish` for control-only diagnostics.
+- `NativeSignalingSession::Restart()` discards the prior receiver/PeerConnection
+  state after the signaling socket is closed, creates a fresh session with a new
+  session ID, and reapplies the Access Unit handler. This is an explicit bounded
+  restart operation; it is not an infinite retry loop.
 - `LibDataChannelReceiver` records peer-connection state, ICE state, state-change
   counters, and whether H.264 is present in the remote offer and local answer.
   These are diagnostic observations only; they do not prove a live Safari path.
@@ -43,7 +47,7 @@ for the existing WSS signaling boundary.
 ## Test evidence
 
 With the repository `vcpkg.json` manifest and the vcpkg baseline recorded there,
-the opt-in CMake Debug build compiled and all 15 registered CTest tests passed,
+the opt-in CMake Debug build compiled and all 16 registered CTest tests passed,
 including:
 
 - `cambridge_libdatachannel_receiver_tests`
@@ -52,6 +56,7 @@ including:
 - `cambridge_native_signaling_websocket_tests`
 - `cambridge_h264_depacketizer_tests`
 - `cambridge_libdatachannel_loopback_tests`
+- `cambridge_libdatachannel_pipeline_loopback_tests`
 
 The receiver test observes a generated SDP Answer containing H.264, verifies
 the remote/local H.264 diagnostic flags, and verifies that an Offer causes a
@@ -68,7 +73,9 @@ interoperation or a device result.
 
 ## Next gate
 
-The next implementation gate is a real same-LAN Safari H.264 interop probe. It
+The restart unit test also verifies that a closed native session can emit a new
+`hello` with a new session ID and return to `WaitingForOffer`. The next
+implementation gate is a real same-LAN Safari H.264 interop probe. It
 must use the Stage 1 Web Client, the existing HTTPS/WSS server, a private IPv4
 host candidate, and a real selected codec/DTLS/SRTP/RTP evidence log. Until that
 gate passes, no live decode rate or end-to-end Virtual Camera result is claimed.

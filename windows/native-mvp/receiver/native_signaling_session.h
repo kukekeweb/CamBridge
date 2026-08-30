@@ -29,6 +29,7 @@ class NativeSignalingSession {
   NativeSignalingSession& operator=(const NativeSignalingSession&) = delete;
 
   bool Start();
+  bool Restart(std::string sessionId);
   bool OnSocketOpen();
   bool OnSocketMessage(const std::string& message);
   void Close();
@@ -37,18 +38,21 @@ class NativeSignalingSession {
   const std::string& lastError() const { return lastError_; }
   void SetSendHandler(SendHandler handler) { sendHandler_ = std::move(handler); }
   void SetAccessUnitHandler(AccessUnitHandler handler) {
-    receiver_->SetAccessUnitHandler(std::move(handler));
+    accessUnitHandler_ = std::move(handler);
+    if (receiver_) receiver_->SetAccessUnitHandler(accessUnitHandler_);
   }
   LibDataChannelReceiverMetrics metrics() const;
 
  private:
   bool Fail(std::string message);
   bool Send(std::string message);
+  void CreateReceiver();
 
   NativeSignalingSessionConfig config_;
   std::unique_ptr<LibDataChannelReceiver> receiver_;
   std::vector<SignalingMessage> pendingIce_;
   SendHandler sendHandler_;
+  AccessUnitHandler accessUnitHandler_;
   std::string lastError_;
   bool started_ = false;
   bool socketOpen_ = false;
