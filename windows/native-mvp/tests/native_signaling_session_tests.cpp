@@ -28,7 +28,7 @@ constexpr char kOffer[] =
     "a=rtpmap:96 H264/90000\r\n"
     "a=ice-ufrag:test\r\n"
     "a=ice-pwd:test-password\r\n"
-    "a=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00\r\n"
+    "a=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\n"
     "a=setup:actpass\r\n";
 
 void TestHelloAndOfferAnswer() {
@@ -51,7 +51,7 @@ void TestHelloAndOfferAnswer() {
   assert(ParseSignalingMessage(sent.front(), &hello, &error));
   assert(hello.type == SignalingMessageType::Hello);
   assert(session.OnSocketMessage(
-      R"({"version":1,"type":"offer","sessionId":"s1","sdp":"v=0\r\no=- 1 1 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test\r\na=ice-pwd:test-password\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00\r\na=setup:actpass\r\n"})"));
+      R"({"version":1,"type":"offer","sessionId":"s1","sdp":"v=0\r\no=- 1 1 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test\r\na=ice-pwd:test-password\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\na=setup:actpass\r\n"})"));
 
   std::unique_lock lock(mutex);
   assert(condition.wait_for(lock, std::chrono::seconds(1), [&] { return sent.size() >= 2; }));

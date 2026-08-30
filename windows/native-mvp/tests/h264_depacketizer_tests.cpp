@@ -41,11 +41,11 @@ void TestSingleNal() {
       RtpPacket(1, 9000, true, {0x65, 0xaa, 0xbb})));
   rtc::binary output;
   std::uint32_t timestamp = 0;
-  static_cast<rtc::MediaHandler&>(depacketizer).incoming(messages, [&](rtc::message_ptr message) {
-    output = *message;
-    assert(message->frameInfo.has_value());
-    timestamp = message->frameInfo->timestamp;
-  });
+  static_cast<rtc::MediaHandler&>(depacketizer).incoming(messages, [](rtc::message_ptr) {});
+  assert(messages.size() == 1);
+  output = *messages.front();
+  assert(messages.front()->frameInfo);
+  timestamp = messages.front()->frameInfo->timestamp;
   assert(output.size() == 7);
   assert(std::to_integer<std::uint8_t>(output[0]) == 0);
   assert(std::to_integer<std::uint8_t>(output[3]) == 1);
@@ -62,10 +62,9 @@ void TestFuA() {
   messages.push_back(std::make_shared<rtc::Message>(
       RtpPacket(11, 18000, true, {0x7c, 0x45, 0xbb})));
   rtc::binary output;
-  static_cast<rtc::MediaHandler&>(depacketizer).incoming(messages,
-                                                        [&](rtc::message_ptr message) {
-                                                          output = *message;
-                                                        });
+  static_cast<rtc::MediaHandler&>(depacketizer).incoming(messages, [](rtc::message_ptr) {});
+  assert(messages.size() == 1);
+  output = *messages.front();
   assert(output.size() == 7);
   assert(std::to_integer<std::uint8_t>(output[3]) == 1);
   assert(std::to_integer<std::uint8_t>(output[4]) == 0x65);

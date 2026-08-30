@@ -18,9 +18,11 @@ The current source tree contains the IPC contract, synthetic producer, Custom Me
 Source DLL, registration manager, and a Media Foundation capture probe. The
 dependency-free receiver/session core, the opt-in libdatachannel adapter, H.264
 RTP depacketizer fixtures, and the Media Foundation H.264-to-NV12 decoder
-boundary are also present. Live Safari WebRTC reception, decoder wiring, and
-integrated IPC publication remain open and must not be inferred from the unit
-or fixture tests.
+boundary are also present. Receiver-to-decoder-to-IPC wiring is covered by a
+fixture, and the receiver probe reports peer/ICE state plus H.264 presence in
+the remote offer and local answer. Live Safari WebRTC reception, hardware-path
+confirmation, sustained decoding, and integrated network-to-Virtual-Camera
+output remain open and must not be inferred from the unit or fixture tests.
 
 The dependency-free `receiver/receiver_session.*` core now provides the first
 native receiver boundary: one-session lifecycle, Safari Offer validation for a
@@ -36,8 +38,8 @@ peer and do not yet constitute an interoperability result.
 
 The opt-in `cambridge_native_receiver.exe` is a bounded native receiver probe
 around that wrapper. It accepts the WSS URL, the session id shown by the Web
-Client, and the CamBridge Local CA; it prints receiver state, H.264 access-unit
-counts, and RTP timestamps. Start this probe before pressing Connect in Safari
+Client, and the CamBridge Local CA; it prints receiver state, ICE state, H.264
+offer/answer presence, access-unit counts, and RTP timestamps. Start this probe before pressing Connect in Safari
 so the native peer is ready for the browser Offer:
 
 ```powershell

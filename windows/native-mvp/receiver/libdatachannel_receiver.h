@@ -17,10 +17,38 @@ struct LibDataChannelReceiverConfig {
   unsigned int h264BitrateKbps = 5000;
 };
 
+enum class ReceiverPeerState {
+  New,
+  Connecting,
+  Connected,
+  Disconnected,
+  Failed,
+  Closed,
+};
+
+enum class ReceiverIceState {
+  New,
+  Checking,
+  Connected,
+  Completed,
+  Failed,
+  Disconnected,
+  Closed,
+};
+
 struct LibDataChannelReceiverMetrics {
   std::uint64_t accessUnits = 0;
   std::uint32_t lastTimestamp = 0;
+  ReceiverPeerState peerState = ReceiverPeerState::New;
+  ReceiverIceState iceState = ReceiverIceState::New;
+  std::uint64_t peerStateChanges = 0;
+  std::uint64_t iceStateChanges = 0;
+  bool remoteOfferHasH264 = false;
+  bool localAnswerHasH264 = false;
 };
+
+const char* ReceiverPeerStateName(ReceiverPeerState state);
+const char* ReceiverIceStateName(ReceiverIceState state);
 
 class LibDataChannelReceiver {
  public:
@@ -63,6 +91,12 @@ class LibDataChannelReceiver {
   AccessUnitHandler accessUnitHandler_;
   std::atomic<std::uint64_t> accessUnits_{0};
   std::atomic<std::uint32_t> lastTimestamp_{0};
+  std::atomic<ReceiverPeerState> peerState_{ReceiverPeerState::New};
+  std::atomic<ReceiverIceState> iceState_{ReceiverIceState::New};
+  std::atomic<std::uint64_t> peerStateChanges_{0};
+  std::atomic<std::uint64_t> iceStateChanges_{0};
+  std::atomic_bool remoteOfferHasH264_{false};
+  std::atomic_bool localAnswerHasH264_{false};
 };
 
 }  // namespace cambridge::native::receiver

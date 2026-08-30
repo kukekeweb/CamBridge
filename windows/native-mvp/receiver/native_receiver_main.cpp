@@ -205,7 +205,16 @@ int wmain(int argc, wchar_t** argv) {
     if (now - lastReport >= std::chrono::seconds(1)) {
       const auto metrics = receiver.metrics();
       std::cout << "Metrics: accessUnits=" << metrics.accessUnits
-                << " lastRtpTimestamp=" << metrics.lastTimestamp << "\n";
+                << " lastRtpTimestamp=" << metrics.lastTimestamp
+                << " peerState="
+                << cambridge::native::receiver::ReceiverPeerStateName(metrics.peerState)
+                << " iceState="
+                << cambridge::native::receiver::ReceiverIceStateName(metrics.iceState)
+                << " peerStateChanges=" << metrics.peerStateChanges
+                << " iceStateChanges=" << metrics.iceStateChanges
+                << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
+                << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+                << "\n";
       if (mediaPipeline) {
         const auto pipelineMetrics = mediaPipeline->metrics();
         std::cout << "Pipeline: input=" << pipelineMetrics.inputAccessUnits
@@ -222,7 +231,16 @@ int wmain(int argc, wchar_t** argv) {
   const auto metrics = receiver.metrics();
   std::cout << "Receiver: stopping\n"
             << "Final metrics: accessUnits=" << metrics.accessUnits
-            << " lastRtpTimestamp=" << metrics.lastTimestamp << "\n";
+            << " lastRtpTimestamp=" << metrics.lastTimestamp
+            << " peerState="
+            << cambridge::native::receiver::ReceiverPeerStateName(metrics.peerState)
+            << " iceState="
+            << cambridge::native::receiver::ReceiverIceStateName(metrics.iceState)
+            << " peerStateChanges=" << metrics.peerStateChanges
+            << " iceStateChanges=" << metrics.iceStateChanges
+            << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
+            << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+            << "\n";
   receiver.Close();
   if (mediaPipeline) {
     const auto pipelineMetrics = mediaPipeline->metrics();

@@ -23,7 +23,7 @@ constexpr char kOffer[] =
     "a=rtpmap:96 H264/90000\r\n"
     "a=ice-ufrag:test\r\n"
     "a=ice-pwd:test-password\r\n"
-    "a=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00\r\n"
+    "a=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\n"
     "a=setup:actpass\r\n";
 
 void TestStartAndValidation() {
@@ -47,12 +47,17 @@ void TestOfferReachesPeerConnection() {
     condition.notify_one();
   });
   assert(receiver.Start());
-  assert(receiver.AcceptOffer("session-2", kOffer));
+  const bool accepted = receiver.AcceptOffer("session-2", kOffer);
+  if (!accepted) std::cerr << "AcceptOffer failed: " << receiver.lastError() << "\n";
+  assert(accepted);
   assert(receiver.lastError().empty());
   {
     std::unique_lock lock(mutex);
     assert(condition.wait_for(lock, std::chrono::seconds(1), [&] { return answerObserved; }));
   }
+  const auto metrics = receiver.metrics();
+  assert(metrics.remoteOfferHasH264);
+  assert(metrics.localAnswerHasH264);
   receiver.Close();
   assert(receiver.state() != ReceiverState::Connected);
 }
