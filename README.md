@@ -152,3 +152,34 @@ then use **Copy JSON** or **Copy CSV** to preserve the complete evidence.
 
 The live Stage 2 Safari interop acceptance remains gated on this real-device
 capture result; offline receiver and decoder tests do not replace it.
+
+## Native runtime launcher
+
+After the one-time native installation has registered the Media Source and
+created the CurrentUser Virtual Camera, start the normal LAN runtime with:
+
+```text
+Start-CamBridge-Native.cmd
+```
+
+This launcher does not modify registry entries, install files, firewall rules,
+or the existing Virtual Camera registration. It starts the local HTTPS/WSS
+server and the native receiver, prints the private-LAN iPhone URL, and waits
+for the iPhone connection. It prompts for the HTTPS PFX password without
+printing or storing that password. TLS verification remains enabled for the
+native receiver; insecure TLS is not enabled by this launcher.
+
+The receiver requires the Release executable and the installed/registered
+native Media Source from the one-time installation. Use `-DryRun` to inspect
+the resolved paths and URLs without starting either child process:
+
+```powershell
+.\Start-CamBridge-Native.cmd -DryRun -BindAddress 192.168.11.2 -Port 8443
+```
+
+The runtime launcher is intentionally separate from
+`Install-CamBridge-Native.cmd`: installation may require elevation, while
+normal runtime startup is intended to run as the logged-in user. Child logs
+are written under `build\native-mvp\diagnostics\runtime` by default. An
+unexpected child exit is reported with its log path and only the exact child
+processes owned by the launcher are stopped during cleanup.
