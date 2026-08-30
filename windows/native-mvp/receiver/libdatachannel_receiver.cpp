@@ -145,6 +145,7 @@ bool LibDataChannelReceiver::Start() {
     impl_->track->setMediaHandler(std::make_shared<rtc::H264RtpDepacketizer>());
     impl_->track->onFrame([this](rtc::binary data, rtc::FrameInfo info) {
       accessUnits_.fetch_add(1, std::memory_order_relaxed);
+      accessUnitBytes_.fetch_add(data.size(), std::memory_order_relaxed);
       lastTimestamp_.store(info.timestamp, std::memory_order_relaxed);
       if (accessUnitHandler_) {
         std::vector<std::uint8_t> accessUnit;
@@ -217,7 +218,20 @@ void LibDataChannelReceiver::Close() {
 LibDataChannelReceiverMetrics LibDataChannelReceiver::metrics() const {
   LibDataChannelReceiverMetrics result;
   result.accessUnits = accessUnits_.load(std::memory_order_relaxed);
+  result.accessUnitBytes = accessUnitBytes_.load(std::memory_order_relaxed);
   result.lastTimestamp = lastTimestamp_.load(std::memory_order_relaxed);
+  if (impl_ && impl_->peerConnection) {
+    result.bytesReceived = impl_->peerConnection->bytesReceived();
+    if (const auto rtt = impl_->peerConnection->rtt()) {
+      result.rttMilliseconds = rtt->count();
+    }
+    rtc::Candidate local;
+    rtc::Candidate remote;
+    if (impl_->peerConnection->getSelectedCandidatePair(&local, &remote)) {
+      result.selectedLocalCandidate = local.candidate();
+      result.selectedRemoteCandidate = remote.candidate();
+    }
+  }
   result.peerState = peerState_.load(std::memory_order_relaxed);
   result.iceState = iceState_.load(std::memory_order_relaxed);
   result.peerStateChanges = peerStateChanges_.load(std::memory_order_relaxed);

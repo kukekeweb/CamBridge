@@ -38,7 +38,12 @@ enum class ReceiverIceState {
 
 struct LibDataChannelReceiverMetrics {
   std::uint64_t accessUnits = 0;
+  std::uint64_t accessUnitBytes = 0;
   std::uint32_t lastTimestamp = 0;
+  std::uint64_t bytesReceived = 0;
+  std::int64_t rttMilliseconds = -1;
+  std::string selectedLocalCandidate;
+  std::string selectedRemoteCandidate;
   ReceiverPeerState peerState = ReceiverPeerState::New;
   ReceiverIceState iceState = ReceiverIceState::New;
   std::uint64_t peerStateChanges = 0;
@@ -90,6 +95,7 @@ class LibDataChannelReceiver {
   LocalCandidateHandler localCandidateHandler_;
   AccessUnitHandler accessUnitHandler_;
   std::atomic<std::uint64_t> accessUnits_{0};
+  std::atomic<std::uint64_t> accessUnitBytes_{0};
   std::atomic<std::uint32_t> lastTimestamp_{0};
   std::atomic<ReceiverPeerState> peerState_{ReceiverPeerState::New};
   std::atomic<ReceiverIceState> iceState_{ReceiverIceState::New};

@@ -214,6 +214,11 @@ int wmain(int argc, wchar_t** argv) {
                 << " iceStateChanges=" << metrics.iceStateChanges
                 << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
                 << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+                << " accessUnitBytes=" << metrics.accessUnitBytes
+                << " bytesReceived=" << metrics.bytesReceived
+                << " rttMs=" << metrics.rttMilliseconds
+                << " selectedLocalCandidate=" << metrics.selectedLocalCandidate
+                << " selectedRemoteCandidate=" << metrics.selectedRemoteCandidate
                 << "\n";
       if (mediaPipeline) {
         const auto pipelineMetrics = mediaPipeline->metrics();
@@ -240,6 +245,11 @@ int wmain(int argc, wchar_t** argv) {
             << " iceStateChanges=" << metrics.iceStateChanges
             << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
             << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+            << " accessUnitBytes=" << metrics.accessUnitBytes
+            << " bytesReceived=" << metrics.bytesReceived
+            << " rttMs=" << metrics.rttMilliseconds
+            << " selectedLocalCandidate=" << metrics.selectedLocalCandidate
+            << " selectedRemoteCandidate=" << metrics.selectedRemoteCandidate
             << "\n";
   receiver.Close();
   if (mediaPipeline) {

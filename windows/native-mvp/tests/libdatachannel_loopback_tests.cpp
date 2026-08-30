@@ -223,8 +223,17 @@ void RunNativeRtpLoopback() {
             "native loopback access-unit timeout");
   }
   Require(receivedTimestamp == 9000, "native loopback RTP timestamp mismatch");
-  Require(receiver.metrics().accessUnits >= 1,
+  const auto receiverMetrics = receiver.metrics();
+  Require(receiverMetrics.accessUnits >= 1,
           "native loopback receiver metric did not increment");
+  Require(receiverMetrics.accessUnitBytes > 0,
+          "native loopback receiver access-unit byte metric did not increment");
+  Require(!receiverMetrics.selectedLocalCandidate.empty() &&
+              !receiverMetrics.selectedRemoteCandidate.empty(),
+          "native loopback selected candidate pair was not reported");
+  Require(receiverMetrics.selectedLocalCandidate.find(bindAddress) != std::string::npos &&
+              receiverMetrics.selectedRemoteCandidate.find(bindAddress) != std::string::npos,
+          "native loopback selected candidate pair is not the private LAN address");
 
   receiver.Close();
   sender->close();

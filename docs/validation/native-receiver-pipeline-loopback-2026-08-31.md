@@ -50,7 +50,15 @@ Result on this Windows host:
 - Release: 16/16 tests passed
 - Pipeline loopback: passed
 - Published frame readback: NV12, 1920x1080, valid stride and byte count
+- Receiver selected local/remote candidate pair: both private-LAN address
+- Receiver `accessUnitBytes`: incremented from the native track callback
 - Existing Media Source/Synthetic tests: passed in the same CTest runs
+
+The libdatachannel `PeerConnection::bytesReceived()` value remained zero in
+this media-only loopback even though the track callback and decoded frames
+advanced. It is therefore retained as an optional transport statistic but is
+not used as proof of media reception; `accessUnitBytes` is the explicit
+application-level counter for this boundary.
 
 This proves the user-mode network-to-IPC fixture boundary only. It does not
 prove the browser's negotiated codec, hardware encoder/decoder selection,
