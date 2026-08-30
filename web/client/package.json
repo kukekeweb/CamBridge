@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node tests/run-tests.mjs",
-    "check": "node --check src/settings.js && node --check src/capability-probe.js && node --check src/frame-rate-meter.js && node --check src/capture-controller.js && node --check src/diagnostic-matrix.js && node --check src/constraint-probe.js && node --check src/stability-test.js && node --check src/i18n.js && node --check src/main.js"
+    "check": "node --check src/settings.js && node --check src/capability-probe.js && node --check src/frame-rate-meter.js && node --check src/capture-controller.js && node --check src/diagnostic-matrix.js && node --check src/constraint-probe.js && node --check src/stability-test.js && node --check src/i18n.js && node --check src/webrtc-sender.js && node --check src/main.js"
   }
 }

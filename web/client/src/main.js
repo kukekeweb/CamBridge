@@ -15,6 +15,7 @@ import {
 } from "./constraint-probe.js";
 import { FrameRateMeter } from "./frame-rate-meter.js";
 import { StabilityTestRunner } from "./stability-test.js";
+import { WebRtcSender } from "./webrtc-sender.js";
 import {
   describeError,
   formatActualCapture,
@@ -32,6 +33,7 @@ import {
   formatStabilityFPS,
   formatStabilitySeconds,
   formatStabilityStatus,
+  formatWebRtcStatus,
   TEXT,
 } from "./i18n.js";
 import {
@@ -49,6 +51,8 @@ let matrixRows = [];
 let constraintProbeRows = [];
 let stabilityRunning = false;
 let stabilityReport = null;
+let webRtcSender = null;
+const webRtcSessionId = `cambridge-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 
 function json(value) {
   return JSON.stringify(value, null, 2);
@@ -58,6 +62,28 @@ function recordError(error) {
   const message = error instanceof Error || error?.name ? describeError(error) : String(error);
   errors.push(message);
   $("errors-output").textContent = json(errors);
+}
+
+function renderWebRtcStatus(status) {
+  const element = $("webrtc-status");
+  element.textContent = formatWebRtcStatus(status);
+  element.className = status === "connected"
+    ? "status running"
+    : typeof status === "string" && status.startsWith("error:")
+      ? "status error"
+      : "status";
+}
+
+function signalingUrl() {
+  if (globalThis.location?.protocol !== "https:") return null;
+  return `wss://${globalThis.location.host}/signaling`;
+}
+
+function closeWebRtcSender() {
+  webRtcSender?.close();
+  webRtcSender = null;
+  $("connect-webrtc-button").disabled = !controller.track;
+  $("disconnect-webrtc-button").disabled = true;
 }
 
 function renderRequested(settings) {
@@ -311,11 +337,15 @@ function selectDiagnosticDevices(refreshedDevices, selectedId, runAll) {
 }
 
 $("latency-output").textContent = formatLatencyAPIs(probeLowLatencyAPIs(globalThis));
+$("webrtc-session-id").textContent = webRtcSessionId;
+$("webrtc-url").textContent = signalingUrl() ?? "HTTPSで開いてください";
+renderWebRtcStatus("idle");
 renderCodecs();
 renderRequested(latestSettings);
 refreshDevices();
 
 $("start-button").addEventListener("click", async () => {
+  closeWebRtcSender();
   const settings = readSettings();
   latestSettings = settings;
   renderRequested(settings);
@@ -334,27 +364,69 @@ $("start-button").addEventListener("click", async () => {
       $("capture-status").textContent = TEXT.captureRunning;
       $("capture-status").className = "status running";
       $("preview-placeholder").hidden = true;
+      $("connect-webrtc-button").disabled = false;
       await refreshDevices();
     } else {
       $("capture-status").textContent = `● ${result.message}`;
       $("capture-status").className = "status error";
       recordError(result.message);
+      $("connect-webrtc-button").disabled = true;
     }
   } catch (error) {
     $("capture-status").textContent = `● ${describeError(error)}`;
     $("capture-status").className = "status error";
     recordError(error);
+    $("connect-webrtc-button").disabled = true;
   } finally {
     $("start-button").disabled = false;
   }
 });
 
 $("stop-button").addEventListener("click", () => {
+  closeWebRtcSender();
   controller.stop();
   $("preview-placeholder").hidden = false;
   $("capture-status").textContent = TEXT.captureStopped;
   $("capture-status").className = "status";
   $("actual-value").textContent = TEXT.noValue;
+});
+
+$("connect-webrtc-button").addEventListener("click", async () => {
+  if (!controller.track || !controller.stream) {
+    const error = new Error(TEXT.webrtcRequiresExactTrack);
+    renderWebRtcStatus("error: " + error.message);
+    recordError(error);
+    return;
+  }
+  const url = signalingUrl();
+  if (!url) {
+    const error = new Error(TEXT.webrtcRequiresHttps);
+    renderWebRtcStatus("error: " + error.message);
+    recordError(error);
+    return;
+  }
+
+  webRtcSender?.close();
+  webRtcSender = new WebRtcSender({
+    signalingUrl: url,
+    sessionId: webRtcSessionId,
+    track: controller.track,
+    stream: controller.stream,
+    onStatus: renderWebRtcStatus,
+  });
+  $("connect-webrtc-button").disabled = true;
+  $("disconnect-webrtc-button").disabled = false;
+  try {
+    await webRtcSender.connect();
+  } catch (error) {
+    $("connect-webrtc-button").disabled = false;
+    $("disconnect-webrtc-button").disabled = true;
+    recordError(error);
+  }
+});
+
+$("disconnect-webrtc-button").addEventListener("click", () => {
+  closeWebRtcSender();
 });
 
 $("start-stability-button").addEventListener("click", async () => {
@@ -365,6 +437,7 @@ $("start-stability-button").addEventListener("click", async () => {
     $("stability-status").className = "status error";
     return;
   }
+  closeWebRtcSender();
   controller.stop();
   stabilityRunning = true;
   stabilityReport = null;
@@ -430,6 +503,7 @@ async function runMatrix(runAll) {
     $("matrix-status").textContent = TEXT.matrixNoInputs;
     return;
   }
+  closeWebRtcSender();
   controller.stop();
   $("preview-placeholder").hidden = false;
   matrixRows = [];
@@ -471,6 +545,7 @@ async function runConstraintProbe(runAll) {
     $("constraint-probe-status").textContent = TEXT.constraintNoInputs;
     return;
   }
+  closeWebRtcSender();
   controller.stop();
   $("preview-placeholder").hidden = false;
   constraintProbeRows = [];

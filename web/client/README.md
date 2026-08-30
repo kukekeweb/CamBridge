@@ -9,9 +9,8 @@ unsupported and is not retried with a lower resolution or frame rate.
 
 The page measures displayed frames with
 `HTMLVideoElement.requestVideoFrameCallback()` when Safari provides it. The
-codec list and low-latency API list are runtime probes only. No
-`RTCPeerConnection`, WebRTC sender, WSS signaling, or video transport is
-created in this stage.
+codec list and low-latency API list are runtime probes only. The Stage 1 camera
+diagnostics do not create a network connection.
 
 Open the URL printed by the Windows server, preferably the private-LAN IPv4
 URL. The page requires HTTPS and camera permission.
@@ -81,3 +80,19 @@ event, no unintended reacquisition, no JavaScript error/unhandled rejection,
 and observed video frames. Manual stop, Track state loss, settings mismatch, or
 an unavailable frame callback produces FAIL. The final JSON is the evidence for
 the real iPhone acceptance; fake-clock unit tests do not replace it.
+
+## Stage 2 WebRTC sender probe
+
+After the camera has been started successfully at exact 1920×1080 @ 60fps, the
+**WebRTC接続** button creates a browser-side `RTCPeerConnection` and sends an
+Offer over the same-origin WSS endpoint `/signaling`. ICE servers are empty by
+design: the initial probe is LAN-only and does not use external STUN or TURN.
+The sender filters runtime `RTCRtpSender.getCapabilities("video")` to H.264
+and refuses to connect when H.264 is not exposed or the active camera Track is
+not exactly 1920×1080 @ 60fps. It does not silently downgrade the camera or
+select another codec.
+
+This is only the first signaling/sender slice. The Windows native receiver,
+H.264 decoder, decoded-frame IPC publisher, and Virtual Camera path are not
+implemented by this probe yet. A displayed **Offer送信済み** state is therefore
+not proof of a completed Windows media receive or negotiated codec.

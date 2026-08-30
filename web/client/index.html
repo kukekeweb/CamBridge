@@ -12,7 +12,7 @@
       <header>
         <p class="eyebrow">LANカメラ対応状況プローブ</p>
         <h1>CamBridge</h1>
-        <p class="lede">Safariのカメラ取得のみを行います。Stage 1ではWebRTC通信を実装していません。</p>
+        <p class="lede">Safariのカメラ取得とStage 1診断を行います。WebRTC接続はStage 2の接続Probeとして任意に実行できます。</p>
       </header>
 
       <section class="card controls" aria-labelledby="settings-heading">
@@ -74,6 +74,21 @@
           <div><dt>要求FPS基準の不足フレーム数</dt><dd id="missing-value">—</dd></div>
           <div><dt>出力計画</dt><dd id="output-plan-value">—</dd></div>
         </dl>
+      </section>
+
+      <section class="card webrtc-card" aria-labelledby="webrtc-heading">
+        <h2 id="webrtc-heading">WebRTC接続（Stage 2 Probe）</h2>
+        <p class="muted">現在の1920×1080 / 60fps実カメラTrackを、同一originのWSSへH.264優先で接続します。Windows受信・デコード・Virtual Cameraはまだ実装していません。</p>
+        <dl>
+          <div><dt>Signaling URL</dt><dd id="webrtc-url">—</dd></div>
+          <div><dt>Session ID</dt><dd id="webrtc-session-id">—</dd></div>
+          <div><dt>Codec</dt><dd id="webrtc-codec-value">H.264を要求</dd></div>
+        </dl>
+        <div class="button-row">
+          <button id="connect-webrtc-button" type="button" disabled>WebRTC接続</button>
+          <button id="disconnect-webrtc-button" type="button" class="secondary" disabled>WebRTC切断</button>
+        </div>
+        <p id="webrtc-status" class="status">● WebRTC未接続</p>
       </section>
 
       <section class="card stability-card" aria-labelledby="stability-heading">

@@ -39,6 +39,23 @@ export const TEXT = Object.freeze({
   stabilityPassed: "PASS",
   stabilityFailed: "FAIL",
   stabilityCopied: "● 安定性テストJSONをクリップボードへコピーしました",
+  webrtcIdle: "● WebRTC未接続",
+  webrtcConnecting: "● WebRTC接続中…",
+  webrtcOffered: "● Offer送信済み：WindowsのAnswerを待っています",
+  webrtcConnected: "● WebRTC接続済み",
+  webrtcClosed: "● WebRTC切断",
+  webrtcFailed: "● WebRTC接続失敗：{message}",
+  webrtcRequiresExactTrack: "1920×1080 / 60fpsの実カメラTrackが必要です",
+  webrtcAlreadyActive: "WebRTC senderはすでに接続処理中です",
+  webrtcRequiresSession: "WebRTC signaling session IDが必要です",
+  webrtcRequiresHttps: "WebRTC signalingにはHTTPSが必要です",
+  webrtcH264Unavailable: "SafariからH.264 capabilityが公開されていません",
+  webrtcCodecPreferenceUnavailable: "setCodecPreferencesが利用できないためH.264を固定できません",
+  webrtcSocketClosed: "signaling WebSocketが開いていません",
+  webrtcSessionMismatch: "signaling sessionが一致しません",
+  webrtcSocketError: "signaling WebSocketでエラーが発生しました",
+  webrtcUnexpectedMessage: "予期しないsignaling messageです",
+  webrtcSignalingError: "signalingでエラーが通知されました：{code}",
   clipboardCopied: "● {format}をクリップボードへコピーしました",
   clipboardFailed: "クリップボードへのコピーに失敗しました：{message}",
   mismatch: "{capture}は利用できません：実際のカメラ設定が要求値と一致しません",
@@ -208,4 +225,15 @@ export function formatStabilityFPS(value) {
 
 export function formatStabilityStatus(status) {
   return status === "PASS" ? TEXT.stabilityPassed : TEXT.stabilityFailed;
+}
+
+export function formatWebRtcStatus(status) {
+  if (status === "connecting") return TEXT.webrtcConnecting;
+  if (status === "offered") return TEXT.webrtcOffered;
+  if (status === "connected") return TEXT.webrtcConnected;
+  if (status === "closed" || status === "disconnected") return TEXT.webrtcClosed;
+  if (typeof status === "string" && status.startsWith("error: ")) {
+    return TEXT.webrtcFailed.replace("{message}", status.slice("error: ".length));
+  }
+  return TEXT.webrtcIdle;
 }
