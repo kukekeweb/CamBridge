@@ -43,7 +43,10 @@ struct Nv12Frame {
   std::uint32_t stride = 0;
   std::int64_t timestamp100ns = 0;
   std::uint64_t sequence = 0;
-  std::vector<std::byte> bytes;
+  // User-mode storage type. The shared-memory wire format remains raw NV12
+  // bytes; uint8_t avoids an ABI collision with libdatachannel's exported
+  // std::vector<std::byte> symbols when the receiver is linked in-process.
+  std::vector<std::uint8_t> bytes;
 };
 
 struct SharedFrameStatus {

@@ -14,7 +14,7 @@ std::wstring UniqueName(const wchar_t* suffix) {
 }
 
 cambridge::native::Nv12Frame MakeFrame(std::uint64_t sequence,
-                                       std::byte value = std::byte{0x2a}) {
+                                       std::uint8_t value = 0x2a) {
   cambridge::native::Nv12Frame frame;
   frame.width = 4;
   frame.height = 2;
@@ -40,7 +40,7 @@ void TestPublishesDecodedNv12Frame() {
   assert(output.stride == 4);
   assert(output.timestamp100ns == 7 * 166666);
   assert(output.bytes.size() == 12);
-  assert(output.bytes.front() == std::byte{0x2a});
+  assert(output.bytes.front() == 0x2a);
 
   const auto metrics = publisher.metrics();
   assert(metrics.publishCalls == 1);

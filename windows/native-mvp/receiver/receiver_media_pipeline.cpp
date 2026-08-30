@@ -82,10 +82,7 @@ bool ReceiverMediaPipeline::SubmitAccessUnit(
     return Fail("invalid decoder frame duration");
   }
 
-  std::vector<std::byte> bytes;
-  bytes.reserve(accessUnit.size());
-  for (const auto value : accessUnit) bytes.push_back(static_cast<std::byte>(value));
-  if (!decoder_.SubmitAccessUnit(bytes, timestamp100ns, duration100ns)) {
+  if (!decoder_.SubmitAccessUnit(accessUnit, timestamp100ns, duration100ns)) {
     ++metrics_.inputErrors;
     return Fail(decoder_.lastError().empty() ? "H264 access unit decode failed"
                                              : decoder_.lastError());

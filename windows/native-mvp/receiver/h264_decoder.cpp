@@ -297,7 +297,7 @@ bool MediaFoundationH264Decoder::Start(const H264DecoderConfig& config) {
 }
 
 bool MediaFoundationH264Decoder::SubmitAccessUnit(
-    const std::vector<std::byte>& accessUnit, std::int64_t timestamp100ns,
+    const std::vector<std::uint8_t>& accessUnit, std::int64_t timestamp100ns,
     std::int64_t duration100ns) {
   if (!started_ || !impl_ || !impl_->transform) return Fail("decoder is not started");
   if (accessUnit.empty() || accessUnit.size() > std::numeric_limits<DWORD>::max()) {

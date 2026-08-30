@@ -11,7 +11,7 @@ cambridge::native::Nv12Frame MakeFrame(std::uint64_t sequence, std::uint8_t valu
   frame.stride = 4;
   frame.timestamp100ns = static_cast<std::int64_t>(sequence * 100);
   frame.sequence = sequence;
-  frame.bytes.assign(12, static_cast<std::byte>(value));
+  frame.bytes.assign(12, value);
   return frame;
 }
 
@@ -39,7 +39,7 @@ void TestLatestFrameAndMissingInitialFrame() {
   assert(status.frameBytes == 12);
   assert(reader.ReadLatest(output));
   assert(output.sequence == 1);
-  assert(output.bytes.front() == static_cast<std::byte>(10));
+  assert(output.bytes.front() == 10);
   assert(!reader.ReadLatest(output));
   assert(producer.Publish(MakeFrame(2, 20)));
   assert(producer.Publish(MakeFrame(3, 30)));
@@ -47,7 +47,7 @@ void TestLatestFrameAndMissingInitialFrame() {
   assert(status.publishedSequence == 3);
   assert(reader.ReadLatest(output));
   assert(output.sequence == 3);
-  assert(output.bytes.front() == static_cast<std::byte>(30));
+  assert(output.bytes.front() == 30);
 }
 
 void TestInvalidFrameIsRejected() {

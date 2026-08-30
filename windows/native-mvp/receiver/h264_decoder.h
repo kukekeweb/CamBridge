@@ -52,7 +52,7 @@ class MediaFoundationH264Decoder {
   MediaFoundationH264Decoder& operator=(const MediaFoundationH264Decoder&) = delete;
 
   bool Start(const H264DecoderConfig& config = {});
-  bool SubmitAccessUnit(const std::vector<std::byte>& accessUnit,
+  bool SubmitAccessUnit(const std::vector<std::uint8_t>& accessUnit,
                         std::int64_t timestamp100ns,
                         std::int64_t duration100ns);
   void Stop();

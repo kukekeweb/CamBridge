@@ -21,7 +21,7 @@ void TestRejectsInvalidConfiguration() {
 
 void TestRejectsInputBeforeStart() {
   cambridge::native::MediaFoundationH264Decoder decoder;
-  const std::vector<std::byte> accessUnit{std::byte{0x00}, std::byte{0x01}};
+  const std::vector<std::uint8_t> accessUnit{0x00, 0x01};
   assert(!decoder.SubmitAccessUnit(accessUnit, 0, 166666));
   assert(decoder.metrics().decodeErrors == 1);
   assert(decoder.lastError() == "decoder is not started");
@@ -50,10 +50,10 @@ void TestAvailableDecoderCanStartAndStop() {
   assert(!decoder.IsStarted());
 }
 
-std::vector<std::vector<std::byte>> SplitAnnexBAccessUnits(
+std::vector<std::vector<std::uint8_t>> SplitAnnexBAccessUnits(
     const std::vector<char>& input) {
-  std::vector<std::vector<std::byte>> units;
-  std::vector<std::byte> current;
+  std::vector<std::vector<std::uint8_t>> units;
+  std::vector<std::uint8_t> current;
   auto startCodeLength = [&](std::size_t offset) -> std::size_t {
     if (offset + 3 <= input.size() && input[offset] == 0 && input[offset + 1] == 0 &&
         input[offset + 2] == 1) {
@@ -83,7 +83,7 @@ std::vector<std::vector<std::byte>> SplitAnnexBAccessUnits(
     }
     current.reserve(current.size() + (nalEnd - nalStart));
     for (std::size_t index = nalStart; index < nalEnd; ++index) {
-      current.push_back(static_cast<std::byte>(static_cast<unsigned char>(input[index])));
+      current.push_back(static_cast<std::uint8_t>(static_cast<unsigned char>(input[index])));
     }
     nalStart = nalEnd;
   }

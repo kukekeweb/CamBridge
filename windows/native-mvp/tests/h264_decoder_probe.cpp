@@ -10,10 +10,10 @@
 
 namespace {
 
-std::vector<std::vector<std::byte>> SplitAnnexBAccessUnits(
+std::vector<std::vector<std::uint8_t>> SplitAnnexBAccessUnits(
     const std::vector<char>& input) {
-  std::vector<std::vector<std::byte>> units;
-  std::vector<std::byte> current;
+  std::vector<std::vector<std::uint8_t>> units;
+  std::vector<std::uint8_t> current;
   std::size_t nalStart = 0;
   auto startCodeLength = [&](std::size_t offset) -> std::size_t {
     if (offset + 3 <= input.size() && input[offset] == 0 && input[offset + 1] == 0 &&
@@ -43,7 +43,7 @@ std::vector<std::vector<std::byte>> SplitAnnexBAccessUnits(
     }
     current.reserve(current.size() + (nalEnd - nalStart));
     for (std::size_t index = nalStart; index < nalEnd; ++index) {
-      current.push_back(static_cast<std::byte>(static_cast<unsigned char>(input[index])));
+      current.push_back(static_cast<std::uint8_t>(static_cast<unsigned char>(input[index])));
     }
     nalStart = nalEnd;
   }
