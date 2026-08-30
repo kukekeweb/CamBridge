@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Add-DiagnosticLine {
-    param([Parameter(Mandatory = $true)][string]$Text)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
 
     Add-Content -LiteralPath $LogPath -Value $Text
     if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_STEP_SUMMARY)) {
