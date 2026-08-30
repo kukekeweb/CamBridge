@@ -32,46 +32,56 @@ jobs:
         shell: pwsh
         run: |
           $log = Join-Path $env:RUNNER_TEMP 'cambridge-vcpkg-install.log'
-          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
-          if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = 'C:\vcpkg' }
-          $vcpkg = Join-Path $vcpkgRoot 'vcpkg.exe'
-          if (-not (Test-Path -LiteralPath $vcpkg)) {
-            $resolved = Get-Command vcpkg.exe -ErrorAction SilentlyContinue
-            if ($null -ne $resolved) { $vcpkg = $resolved.Source }
-          }
-          if (-not (Test-Path -LiteralPath $vcpkg)) {
-            $visualStudioRoots = @(
-              (Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022'),
-              (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022')
-            ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_) }
-            foreach ($visualStudioRoot in $visualStudioRoots) {
-              $resolved = Get-ChildItem -LiteralPath $visualStudioRoot -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-              if ($null -ne $resolved) {
-                $vcpkg = $resolved.FullName
-                break
+          try {
+            $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+            if ([string]::IsNullOrWhiteSpace($vcpkgRoot)) { $vcpkgRoot = 'C:\vcpkg' }
+            "initial vcpkg root: $vcpkgRoot" | Set-Content -LiteralPath $log
+            $vcpkg = Join-Path $vcpkgRoot 'vcpkg.exe'
+            if (-not (Test-Path -LiteralPath $vcpkg)) {
+              $resolved = Get-Command vcpkg.exe -ErrorAction SilentlyContinue
+              if ($null -ne $resolved) { $vcpkg = $resolved.Source }
+            }
+            if (-not (Test-Path -LiteralPath $vcpkg)) {
+              $visualStudioRoots = @()
+              if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+                $visualStudioRoots += Join-Path $env:ProgramFiles 'Microsoft Visual Studio\2022'
+              }
+              if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+                $visualStudioRoots += Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022'
+              }
+              foreach ($visualStudioRoot in ($visualStudioRoots | Where-Object { Test-Path -LiteralPath $_ })) {
+                "searching: $visualStudioRoot" | Tee-Object -FilePath $log -Append
+                $resolved = Get-ChildItem -LiteralPath $visualStudioRoot -Filter vcpkg.exe -Recurse -File -ErrorAction SilentlyContinue |
+                  Select-Object -First 1
+                if ($null -ne $resolved) {
+                  $vcpkg = $resolved.FullName
+                  break
+                }
               }
             }
-          }
-          if (-not (Test-Path -LiteralPath $vcpkg)) {
-            "vcpkg executable not found under $vcpkgRoot or PATH" | Set-Content -LiteralPath $log
-            Get-Content -LiteralPath $log
-            throw "vcpkg executable not found under $vcpkgRoot or PATH"
-          }
-          "vcpkg path: $vcpkg" | Set-Content -LiteralPath $log
-          $resolvedVcpkgRoot = Split-Path -Parent $vcpkg
-          "resolved vcpkg root: $resolvedVcpkgRoot" | Tee-Object -FilePath $log -Append
-          "CAMBRIDGE_VCPKG_ROOT=$resolvedVcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
-          & $vcpkg version 2>&1 | Tee-Object -FilePath $log -Append
-          $versionExit = $LASTEXITCODE
-          "vcpkg version exit: $versionExit" | Tee-Object -FilePath $log -Append
-          if ($versionExit -ne 0) { exit $versionExit }
-          & $vcpkg install --triplet x64-windows --clean-after-build 2>&1 |
-            Tee-Object -FilePath $log -Append
-          $installExit = $LASTEXITCODE
-          "vcpkg install exit: $installExit" | Tee-Object -FilePath $log -Append
-          "vcpkg install exit: $installExit" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-          if ($installExit -ne 0) { exit $installExit }
+            if (-not (Test-Path -LiteralPath $vcpkg)) {
+              throw "vcpkg executable not found; resolved candidate: $vcpkg"
+            }
+            "vcpkg path: $vcpkg" | Tee-Object -FilePath $log -Append
+            $resolvedVcpkgRoot = Split-Path -Parent $vcpkg
+            "resolved vcpkg root: $resolvedVcpkgRoot" | Tee-Object -FilePath $log -Append
+            "CAMBRIDGE_VCPKG_ROOT=$resolvedVcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+            & $vcpkg version 2>&1 | Tee-Object -FilePath $log -Append
+            $versionExit = $LASTEXITCODE
+            "vcpkg version exit: $versionExit" | Tee-Object -FilePath $log -Append
+            if ($versionExit -ne 0) { throw "vcpkg version failed with exit code $versionExit" }
+            & $vcpkg install --triplet x64-windows --clean-after-build 2>&1 |
+              Tee-Object -FilePath $log -Append
+            $installExit = $LASTEXITCODE
+            "vcpkg install exit: $installExit" | Tee-Object -FilePath $log -Append
+            if ($installExit -ne 0) { throw "vcpkg install failed with exit code $installExit" }
+            "vcpkg install exit: $installExit" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          } catch {
+            $errorText = $_ | Out-String
+            $errorText | Tee-Object -FilePath $log -Append
+            "vcpkg diagnostic failure:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            $errorText | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            throw
 
       - name: Configure with libdatachannel receiver
         shell: pwsh
