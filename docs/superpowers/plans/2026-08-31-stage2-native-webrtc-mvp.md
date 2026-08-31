@@ -44,6 +44,12 @@ The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
 and FU-A packets. A local WSS startup run reaches the native waiting state;
 real Safari RTP arrival remains a separate interop gate.
 
+The Native receiver probe now prints the H.264 codec names discovered in the
+remote Offer and generated Answer. The Web Client's post-Answer stats panel
+and the native pipeline's timestamp-derived decoded/published FPS are
+observability only; they do not alter codec selection, frame pacing, or the
+existing Virtual Camera path.
+
 ## Phase 3: Safari H.264 interop probe
 
 - Add a Stage 1-controlled “connect” path that creates a sendonly video

@@ -214,6 +214,8 @@ int wmain(int argc, wchar_t** argv) {
                 << " iceStateChanges=" << metrics.iceStateChanges
                 << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
                 << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+                << " remoteOfferCodec=" << metrics.remoteOfferCodec
+                << " localAnswerCodec=" << metrics.localAnswerCodec
                 << " accessUnitBytes=" << metrics.accessUnitBytes
                 << " bytesReceived=" << metrics.bytesReceived
                 << " rttMs=" << metrics.rttMilliseconds
@@ -225,6 +227,13 @@ int wmain(int argc, wchar_t** argv) {
         std::cout << "Pipeline: input=" << pipelineMetrics.inputAccessUnits
                   << " decoded=" << pipelineMetrics.decodedFrames
                   << " published=" << pipelineMetrics.publishedFrames
+                  << " decodedFps=" << pipelineMetrics.decodedFps
+                  << " publishedFps=" << pipelineMetrics.publishedFps
+                  << " output=" << pipelineMetrics.decoder.outputWidth << "x"
+                  << pipelineMetrics.decoder.outputHeight
+                  << " stride=" << pipelineMetrics.decoder.outputStride
+                  << " hardwareDecode=" << (pipelineMetrics.decoder.hardware ? "yes" : "no")
+                  << " transform=" << pipelineMetrics.decoder.selectedTransform
                   << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
                   << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
       }
@@ -245,6 +254,8 @@ int wmain(int argc, wchar_t** argv) {
             << " iceStateChanges=" << metrics.iceStateChanges
             << " remoteOfferH264=" << (metrics.remoteOfferHasH264 ? "yes" : "no")
             << " localAnswerH264=" << (metrics.localAnswerHasH264 ? "yes" : "no")
+            << " remoteOfferCodec=" << metrics.remoteOfferCodec
+            << " localAnswerCodec=" << metrics.localAnswerCodec
             << " accessUnitBytes=" << metrics.accessUnitBytes
             << " bytesReceived=" << metrics.bytesReceived
             << " rttMs=" << metrics.rttMilliseconds
@@ -257,6 +268,13 @@ int wmain(int argc, wchar_t** argv) {
     std::cout << "Final pipeline metrics: input=" << pipelineMetrics.inputAccessUnits
               << " decoded=" << pipelineMetrics.decodedFrames
               << " published=" << pipelineMetrics.publishedFrames
+              << " decodedFps=" << pipelineMetrics.decodedFps
+              << " publishedFps=" << pipelineMetrics.publishedFps
+              << " output=" << pipelineMetrics.decoder.outputWidth << "x"
+              << pipelineMetrics.decoder.outputHeight
+              << " stride=" << pipelineMetrics.decoder.outputStride
+              << " hardwareDecode=" << (pipelineMetrics.decoder.hardware ? "yes" : "no")
+              << " transform=" << pipelineMetrics.decoder.selectedTransform
               << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
               << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
     mediaPipeline->Stop();

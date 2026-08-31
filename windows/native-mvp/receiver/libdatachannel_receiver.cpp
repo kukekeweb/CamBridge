@@ -66,6 +66,41 @@ bool SdpContainsH264(const std::string& sdp) {
   return lower.find("h264/") != std::string::npos;
 }
 
+std::string FirstH264Codec(const std::string& sdp) {
+  std::size_t lineStart = 0;
+  while (lineStart <= sdp.size()) {
+    const std::size_t lineEnd = sdp.find_first_of("\r\n", lineStart);
+    const std::string line = sdp.substr(
+        lineStart, lineEnd == std::string::npos ? sdp.size() - lineStart : lineEnd - lineStart);
+    std::string lower = line;
+    for (char& value : lower) {
+      if (value >= 'A' && value <= 'Z') value = static_cast<char>(value - 'A' + 'a');
+    }
+    if (lower.rfind("a=rtpmap:", 0) == 0) {
+      const std::size_t codecStart = lower.find("h264/");
+      if (codecStart != std::string::npos) {
+        const std::size_t codecEnd = lower.find_first_of(" \t;", codecStart);
+        std::string codec = lower.substr(
+            codecStart, codecEnd == std::string::npos ? lower.size() - codecStart
+                                                       : codecEnd - codecStart);
+        if (codec.size() >= 4) {
+          codec[0] = 'H';
+          codec[1] = '2';
+          codec[2] = '6';
+          codec[3] = '4';
+        }
+        return codec;
+      }
+    }
+    if (lineEnd == std::string::npos) break;
+    lineStart = lineEnd + 1;
+    if (lineStart < sdp.size() && sdp[lineStart - 1] == '\r' && sdp[lineStart] == '\n') {
+      ++lineStart;
+    }
+  }
+  return {};
+}
+
 }  // namespace
 
 struct LibDataChannelReceiver::Impl {
@@ -93,6 +128,11 @@ bool LibDataChannelReceiver::Start() {
   iceStateChanges_.store(0, std::memory_order_relaxed);
   remoteOfferHasH264_.store(false, std::memory_order_relaxed);
   localAnswerHasH264_.store(false, std::memory_order_relaxed);
+  {
+    std::lock_guard lock(codecMutex_);
+    remoteOfferCodec_.clear();
+    localAnswerCodec_.clear();
+  }
 
   try {
     rtc::Configuration configuration;
@@ -109,6 +149,8 @@ bool LibDataChannelReceiver::Start() {
           const std::string sdp = description.generateSdp();
           if (type == "answer") {
             localAnswerHasH264_.store(SdpContainsH264(sdp), std::memory_order_relaxed);
+            std::lock_guard lock(codecMutex_);
+            localAnswerCodec_ = FirstH264Codec(sdp);
           }
           if (localDescriptionHandler_) {
             localDescriptionHandler_(type, sdp);
@@ -188,6 +230,10 @@ bool LibDataChannelReceiver::AcceptOffer(const std::string& sessionId,
     impl_->peerConnection->setLocalDescription();
     impl_->peerConnection->gatherLocalCandidates();
     remoteOfferHasH264_.store(session_.offer().hasH264, std::memory_order_relaxed);
+    {
+      std::lock_guard lock(codecMutex_);
+      remoteOfferCodec_ = FirstH264Codec(sdp);
+    }
   } catch (const std::exception& error) {
     return Fail(error.what());
   }
@@ -246,6 +292,11 @@ LibDataChannelReceiverMetrics LibDataChannelReceiver::metrics() const {
   result.iceStateChanges = iceStateChanges_.load(std::memory_order_relaxed);
   result.remoteOfferHasH264 = remoteOfferHasH264_.load(std::memory_order_relaxed);
   result.localAnswerHasH264 = localAnswerHasH264_.load(std::memory_order_relaxed);
+  {
+    std::lock_guard lock(codecMutex_);
+    result.remoteOfferCodec = remoteOfferCodec_;
+    result.localAnswerCodec = localAnswerCodec_;
+  }
   return result;
 }
 

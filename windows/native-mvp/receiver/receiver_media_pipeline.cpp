@@ -19,6 +19,17 @@ std::int64_t RtpTo100ns(std::uint32_t timestamp, std::uint32_t firstTimestamp,
 
 }  // namespace
 
+double EstimateFpsFromTimestamps(std::uint64_t frameCount,
+                                 std::int64_t firstTimestamp100ns,
+                                 std::int64_t lastTimestamp100ns) {
+  if (frameCount < 2 || lastTimestamp100ns <= firstTimestamp100ns) return 0.0;
+  const auto elapsed100ns = static_cast<long double>(lastTimestamp100ns) -
+                            static_cast<long double>(firstTimestamp100ns);
+  const auto elapsedSeconds = elapsed100ns / static_cast<long double>(k100nsPerSecond);
+  if (elapsedSeconds <= 0.0L) return 0.0;
+  return static_cast<double>(static_cast<long double>(frameCount - 1) / elapsedSeconds);
+}
+
 ReceiverMediaPipeline::~ReceiverMediaPipeline() { Stop(); }
 
 bool ReceiverMediaPipeline::Fail(std::string message) {
@@ -35,6 +46,8 @@ bool ReceiverMediaPipeline::Start(const ReceiverMediaPipelineConfig& config) {
   hasFirstRtpTimestamp_ = false;
   firstRtpTimestamp_ = 0;
   lastRtpTimestamp_ = 0;
+  firstDecodedTimestamp100ns_ = 0;
+  firstPublishedTimestamp100ns_ = 0;
 
   if (!ValidClockRate(config_.rtpClockRate)) return Fail("invalid RTP clock rate");
   if (!publisher_.Start(config_.mappingName, config_.eventName)) {
@@ -97,10 +110,20 @@ bool ReceiverMediaPipeline::SubmitAccessUnit(
 }
 
 void ReceiverMediaPipeline::OnDecodedFrame(Nv12Frame frame) {
+  if (metrics_.decodedFrames == 0) {
+    firstDecodedTimestamp100ns_ = frame.timestamp100ns;
+  }
   ++metrics_.decodedFrames;
   metrics_.lastTimestamp100ns = frame.timestamp100ns;
+  metrics_.decodedFps = EstimateFpsFromTimestamps(
+      metrics_.decodedFrames, firstDecodedTimestamp100ns_, frame.timestamp100ns);
   if (publisher_.Publish(frame)) {
+    if (metrics_.publishedFrames == 0) {
+      firstPublishedTimestamp100ns_ = frame.timestamp100ns;
+    }
     ++metrics_.publishedFrames;
+    metrics_.publishedFps = EstimateFpsFromTimestamps(
+        metrics_.publishedFrames, firstPublishedTimestamp100ns_, frame.timestamp100ns);
   } else {
     ++metrics_.publishErrors;
     lastError_ = "latest-frame publisher rejected decoded NV12 frame";

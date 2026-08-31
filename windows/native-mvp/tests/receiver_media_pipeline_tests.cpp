@@ -13,6 +13,14 @@
 
 namespace {
 
+void TestEstimateFpsFromTimestamps() {
+  assert(cambridge::native::EstimateFpsFromTimestamps(0, 0, 0) == 0.0);
+  assert(cambridge::native::EstimateFpsFromTimestamps(1, 0, 0) == 0.0);
+  assert(cambridge::native::EstimateFpsFromTimestamps(61, 0, 10000000) > 59.99);
+  assert(cambridge::native::EstimateFpsFromTimestamps(61, 0, 10000000) < 60.01);
+  assert(cambridge::native::EstimateFpsFromTimestamps(2, 100, 100) == 0.0);
+}
+
 std::wstring UniqueName(const wchar_t* suffix) {
   return std::wstring(L"Local\\CamBridge.ReceiverPipeline.Test.") +
          std::to_wstring(GetCurrentProcessId()) + L"." + suffix;
@@ -137,6 +145,7 @@ void TestFixtureAcceptsAccessUnitsFromReceiverCallbackThread() {
 }  // namespace
 
 int main() {
+  TestEstimateFpsFromTimestamps();
   TestRejectsInputBeforeStart();
   TestStartStopOwnsDecoderAndPublisherLifecycle();
   TestFixturePublishesDecodedNv12WhenProvided();

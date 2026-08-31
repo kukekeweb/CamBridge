@@ -58,6 +58,8 @@ void TestOfferReachesPeerConnection() {
   const auto metrics = receiver.metrics();
   assert(metrics.remoteOfferHasH264);
   assert(metrics.localAnswerHasH264);
+  assert(metrics.remoteOfferCodec == "H264/90000");
+  assert(metrics.localAnswerCodec == "H264/90000");
   receiver.Close();
   assert(receiver.state() != ReceiverState::Connected);
 }

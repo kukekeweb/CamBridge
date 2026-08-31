@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
@@ -50,6 +51,8 @@ struct LibDataChannelReceiverMetrics {
   std::uint64_t iceStateChanges = 0;
   bool remoteOfferHasH264 = false;
   bool localAnswerHasH264 = false;
+  std::string remoteOfferCodec;
+  std::string localAnswerCodec;
 };
 
 const char* ReceiverPeerStateName(ReceiverPeerState state);
@@ -104,6 +107,9 @@ class LibDataChannelReceiver {
   std::atomic<std::uint64_t> iceStateChanges_{0};
   std::atomic_bool remoteOfferHasH264_{false};
   std::atomic_bool localAnswerHasH264_{false};
+  mutable std::mutex codecMutex_;
+  std::string remoteOfferCodec_;
+  std::string localAnswerCodec_;
 };
 
 }  // namespace cambridge::native::receiver

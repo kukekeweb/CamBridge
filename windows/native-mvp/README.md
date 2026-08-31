@@ -38,6 +38,15 @@ The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
 also been checked through a local WSS startup/waiting run, but this is not a
 live Safari interoperability result.
 
+After an Answer is applied, the Web Client samples
+`RTCPeerConnection.getStats()` and displays the runtime H.264 codec, sender
+FPS, encoded/dropped frames, bitrate, packet loss, RTT, and jitter when Safari
+exposes those fields. Missing fields remain unavailable rather than being
+inferred. The native receiver probe reports the H.264 codec strings found in
+the remote Offer and local Answer, plus decoded/published FPS derived from
+media timestamps, output dimensions/stride, and the selected decoder's
+hardware flag and transform name.
+
 The opt-in `cambridge_native_receiver.exe` is a bounded native receiver probe
 around that wrapper. It accepts the WSS URL and the CamBridge Local CA; by
 default it registers as an `auto` native listener and adopts the first browser

@@ -160,6 +160,17 @@ Browser and native stats are timestamped independently. A “measured end-to-end
 latency” value is only shown when a synchronized visual test is running; it is
 not inferred from RTT.
 
+The Web Client begins polling `RTCPeerConnection.getStats()` after the Answer
+is applied. It reports only runtime fields exposed by the browser, including
+the outbound video codec, sender FPS, encoded/dropped frames, bitrate,
+packets, packet loss, RTT, and jitter. The Native receiver separately reports
+the H.264 codec strings found in the remote Offer and local Answer. Its media
+pipeline derives decoded and published FPS from decoded frame timestamps and
+reports the selected Media Foundation transform, hardware-path flag, output
+dimensions, and stride. These values are diagnostic evidence; absent fields
+are not synthesized and browser/native clocks are not combined into a latency
+claim.
+
 ## Windows receiver and decoder
 
 The receiver is C++20 and uses libdatachannel first. The H.264 access unit

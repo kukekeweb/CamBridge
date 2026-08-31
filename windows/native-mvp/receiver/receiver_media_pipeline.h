@@ -10,6 +10,10 @@
 
 namespace cambridge::native {
 
+double EstimateFpsFromTimestamps(std::uint64_t frameCount,
+                                 std::int64_t firstTimestamp100ns,
+                                 std::int64_t lastTimestamp100ns);
+
 struct ReceiverMediaPipelineConfig {
   H264DecoderConfig decoder;
   std::wstring mappingName = kFrameMappingName;
@@ -22,6 +26,8 @@ struct ReceiverMediaPipelineMetrics {
   std::uint64_t inputErrors = 0;
   std::uint64_t decodedFrames = 0;
   std::uint64_t publishedFrames = 0;
+  double decodedFps = 0.0;
+  double publishedFps = 0.0;
   std::uint64_t publishErrors = 0;
   std::int64_t lastTimestamp100ns = 0;
   bool decoderStarted = false;
@@ -63,6 +69,8 @@ class ReceiverMediaPipeline {
   bool hasFirstRtpTimestamp_ = false;
   std::uint32_t firstRtpTimestamp_ = 0;
   std::uint32_t lastRtpTimestamp_ = 0;
+  std::int64_t firstDecodedTimestamp100ns_ = 0;
+  std::int64_t firstPublishedTimestamp100ns_ = 0;
 };
 
 }  // namespace cambridge::native
