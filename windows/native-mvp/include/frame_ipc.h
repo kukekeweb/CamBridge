@@ -14,7 +14,7 @@ inline constexpr wchar_t kFrameReadyEventName[] = L"Local\\CamBridge.NativeMvp.N
 inline constexpr std::uint32_t kFrameIpcVersion = 1;
 inline constexpr std::uint32_t kSlotCount = 2;
 inline constexpr std::uint32_t kMaxWidth = 1920;
-inline constexpr std::uint32_t kMaxHeight = 1080;
+inline constexpr std::uint32_t kMaxHeight = 1920;
 inline constexpr std::uint32_t kMaxStride = 1920;
 inline constexpr std::uint32_t kMaxFrameBytes = kMaxStride * kMaxHeight * 3 / 2;
 

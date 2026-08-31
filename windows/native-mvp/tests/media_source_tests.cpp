@@ -21,6 +21,9 @@ int wmain(int argc, wchar_t** argv) {
   }
   const bool useProvidedAllocator =
       argc >= 3 && std::wstring(argv[2]) == L"--provided-allocator";
+  const bool usePortrait =
+      (argc >= 3 && std::wstring(argv[2]) == L"--portrait") ||
+      (argc >= 4 && std::wstring(argv[3]) == L"--portrait");
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   const bool comInitialized = SUCCEEDED(hr);
   if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return 1;
@@ -77,6 +80,44 @@ int wmain(int argc, wchar_t** argv) {
   }
   DWORD typeCount = 0;
   typeHandler->GetMediaTypeCount(&typeCount);
+  bool hasPortrait60 = false;
+  for (DWORD index = 0; index < typeCount; ++index) {
+    ComPtr<IMFMediaType> candidate;
+    if (FAILED(typeHandler->GetMediaTypeByIndex(index, &candidate))) continue;
+    UINT32 width = 0;
+    UINT32 height = 0;
+    UINT32 fps = 0;
+    UINT32 denominator = 0;
+    if (SUCCEEDED(MFGetAttributeSize(candidate.Get(), MF_MT_FRAME_SIZE, &width, &height)) &&
+        SUCCEEDED(MFGetAttributeRatio(candidate.Get(), MF_MT_FRAME_RATE, &fps, &denominator)) &&
+        width == 1080 && height == 1920 && fps == 60 && denominator == 1) {
+      hasPortrait60 = true;
+    }
+  }
+  if (!hasPortrait60) {
+    std::wcerr << L"Media Source does not expose portrait 1080x1920@60\n";
+    return 1;
+  }
+  if (usePortrait) {
+    for (DWORD index = 0; index < typeCount; ++index) {
+      ComPtr<IMFMediaType> candidate;
+      if (FAILED(typeHandler->GetMediaTypeByIndex(index, &candidate))) continue;
+      UINT32 width = 0;
+      UINT32 height = 0;
+      UINT32 fps = 0;
+      UINT32 denominator = 0;
+      if (SUCCEEDED(MFGetAttributeSize(candidate.Get(), MF_MT_FRAME_SIZE, &width, &height)) &&
+          SUCCEEDED(MFGetAttributeRatio(candidate.Get(), MF_MT_FRAME_RATE, &fps, &denominator)) &&
+          width == 1080 && height == 1920 && fps == 60 && denominator == 1) {
+        if (FAILED(hr = typeHandler->SetCurrentMediaType(candidate.Get()))) {
+          std::wcerr << L"Portrait media type selection failed: 0x" << std::hex
+                     << static_cast<unsigned long>(hr) << L"\n";
+          return 1;
+        }
+        break;
+      }
+    }
+  }
 
   struct RequiredInterface {
     REFIID iid;
@@ -278,6 +319,12 @@ int wmain(int argc, wchar_t** argv) {
   }
   std::wcout << L"Media Stream sample test: time=" << sampleTime
              << L" duration=" << sampleDuration << L" bytes=" << sampleBytes << L"\n";
+  const DWORD expectedBytes = usePortrait ? 1080u * 1920u * 3u / 2u : 1920u * 1080u * 3u / 2u;
+  if (sampleBytes != expectedBytes) {
+    std::wcerr << L"Media Stream sample size does not match selected layout: expected="
+               << expectedBytes << L" actual=" << sampleBytes << L"\n";
+    return 1;
+  }
   std::wcout << L"Media Source test: types=" << typeCount
              << L" start=0x" << std::hex << static_cast<unsigned long>(hr) << std::dec << L"\n";
   source->Stop();

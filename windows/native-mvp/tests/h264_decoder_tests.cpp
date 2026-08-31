@@ -50,6 +50,19 @@ void TestAvailableDecoderCanStartAndStop() {
   assert(!decoder.IsStarted());
 }
 
+void TestPortraitConfigurationIsNotRejectedAsInvalid() {
+  cambridge::native::MediaFoundationH264Decoder decoder;
+  if (!decoder.Start({1080, 1920, 60, 1, true})) {
+    // A decoder may be unavailable on a test host, but the dimensions must
+    // still pass CamBridge's configuration validation.
+    assert(decoder.lastError() != "invalid decoder dimensions");
+    return;
+  }
+  assert(decoder.metrics().outputWidth == 1080);
+  assert(decoder.metrics().outputHeight == 1920);
+  decoder.Stop();
+}
+
 std::vector<std::vector<std::uint8_t>> SplitAnnexBAccessUnits(
     const std::vector<char>& input) {
   std::vector<std::vector<std::uint8_t>> units;
@@ -131,6 +144,7 @@ int main() {
   TestRejectsInputBeforeStart();
   TestStopIsIdempotent();
   TestAvailableDecoderCanStartAndStop();
+  TestPortraitConfigurationIsNotRejectedAsInvalid();
   TestDecodesProvidedYuv420Fixture();
   std::cout << "CamBridge H264 decoder contract tests passed\n";
   return 0;

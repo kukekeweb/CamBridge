@@ -61,6 +61,31 @@ void TestInvalidFrameIsRejected() {
   assert(!producer.Publish(invalid));
 }
 
+void TestPortraitFrameIsAccepted() {
+  const std::wstring mapping = L"Local\\CamBridge.Test.Mapping.Portrait";
+  const std::wstring event = L"Local\\CamBridge.Test.Event.Portrait";
+  cambridge::native::SharedFrameProducer producer;
+  cambridge::native::SharedFrameReader reader;
+  assert(producer.Create(mapping, event));
+  assert(reader.Open(mapping));
+
+  cambridge::native::Nv12Frame frame;
+  frame.width = 1080;
+  frame.height = 1920;
+  frame.stride = 1080;
+  frame.timestamp100ns = 1234;
+  frame.sequence = 1;
+  frame.bytes.assign(static_cast<std::size_t>(frame.stride) * frame.height * 3 / 2, 42);
+  assert(producer.Publish(frame));
+
+  cambridge::native::Nv12Frame output;
+  assert(reader.ReadLatest(output));
+  assert(output.width == 1080);
+  assert(output.height == 1920);
+  assert(output.stride == 1080);
+  assert(output.bytes.size() == frame.bytes.size());
+}
+
 void TestReaderOpenFailureKeepsDiagnosticError() {
   cambridge::native::SharedFrameReader reader;
   assert(!reader.Open(L"Local\\CamBridge.Test.Mapping.DoesNotExist"));
@@ -75,6 +100,7 @@ int wmain() {
   TestMappingSize();
   TestLatestFrameAndMissingInitialFrame();
   TestInvalidFrameIsRejected();
+  TestPortraitFrameIsAccepted();
   TestReaderOpenFailureKeepsDiagnosticError();
   std::cout << "CamBridge frame IPC tests passed\n";
   return 0;

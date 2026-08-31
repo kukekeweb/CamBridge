@@ -206,6 +206,8 @@ add_test(NAME cambridge_media_source_tests
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source>)
 add_test(NAME cambridge_media_source_tests_provided_allocator
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source> --provided-allocator)
+add_test(NAME cambridge_media_source_tests_portrait
+  COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source> --portrait)
 add_test(NAME cambridge_allocator_identity_tests COMMAND cambridge_allocator_identity_tests)
 add_test(NAME cambridge_diagnostic_event_trace_tests COMMAND cambridge_diagnostic_event_trace_tests)
 add_test(NAME cambridge_receiver_session_tests COMMAND cambridge_receiver_session_tests)
