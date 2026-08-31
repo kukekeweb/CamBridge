@@ -4,7 +4,8 @@ The server serves `web/client/` over HTTPS on a detected private LAN IPv4
 address. The printed IP URL is the Stage 1 acceptance route. The server also
 exposes a same-origin WSS signaling endpoint at `/signaling`; it only relays
 bounded JSON Offer/Answer/ICE control messages and does not carry video. The
-native WebRTC receiver and media transport are not connected yet.
+native WebRTC receiver connects to this endpoint as a separate peer; the server
+still relays signaling only and never carries the video media path.
 
 ## First-time certificate setup
 

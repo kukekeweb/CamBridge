@@ -31,8 +31,11 @@ single sending H.264 video m-line, and private-IPv4 host-candidate policy. It
 does not open a PeerConnection or receive media. The opt-in
 `receiver/libdatachannel_receiver.*` adapter now covers PeerConnection creation,
 recv-only H.264 track setup, validated Offer application, Answer callback, and
-H.264 RTP depacketizer wiring. It deliberately does not claim Safari ICE/DTLS/
-SRTP interoperability, received H.264 access units, decoding, or IPC output.
+H.264 RTP depacketizer wiring. A native RTP loopback and a separate synthetic
+Chromium LAN probe have exercised the receive/depacketize path; these are not
+Safari ICE/DTLS/SRTP or iPhone-camera acceptance results. H.264 decoding and
+IPC output are covered independently by the native pipeline fixture and are
+wired into the receiver probe.
 The opt-in `NativeSignalingSession` and WSS wrapper add the versioned local
 `hello`/`offer`/`answer`/`ice` boundary. The server and native receiver have
 also been checked through a local WSS startup/waiting run, but this is not a
