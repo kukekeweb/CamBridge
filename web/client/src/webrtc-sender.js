@@ -204,7 +204,8 @@ export class WebRtcSender {
         const connectionState = this.peerConnection?.connectionState;
         if (connectionState === "connected") this.emitStatus("connected");
         if (["failed", "disconnected", "closed"].includes(connectionState)) {
-          this.emitStatus(connectionState);
+          const iceState = this.peerConnection?.iceConnectionState ?? "unknown";
+          this.emitStatus(`error: WebRTC接続状態が${connectionState}になりました（connectionState=${connectionState}, ICE=${iceState}, signaling step=${this.lastSignalingStep}）`);
         }
       };
 

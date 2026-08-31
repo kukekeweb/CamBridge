@@ -231,6 +231,24 @@ test("reports an abnormal WebSocket close even without a prior signaling error",
   assert.match(statuses.at(-1), /connection reset/);
 });
 
+test("reports peer connection failure state with the signaling stage", async () => {
+  const statuses = [];
+  const sender = makeSender({ onStatus: (status) => statuses.push(status) });
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  const peer = FakePeerConnection.instances[0];
+  socket.open();
+  await connectPromise;
+
+  peer.connectionState = "failed";
+  peer.onconnectionstatechange?.();
+
+  assert.match(statuses.at(-1), /^error: /);
+  assert.match(statuses.at(-1), /connectionState=failed/);
+  assert.match(statuses.at(-1), /signaling step=offer-sent/);
+  sender.close();
+});
+
 test("summarizes outbound video stats and the negotiated codec", () => {
   const report = new Map([
     ["outbound-1", {
