@@ -2,6 +2,8 @@
 
 #include <rtc/rtc.hpp>
 
+#include <atomic>
+#include <cstddef>
 #include <utility>
 
 namespace cambridge::native::receiver {
@@ -101,11 +103,81 @@ std::string FirstH264Codec(const std::string& sdp) {
   return {};
 }
 
+class IncomingMediaAudit final : public rtc::MediaHandler {
+ public:
+  void incoming(rtc::message_vector& messages,
+                const rtc::message_callback& /*send*/) override {
+    for (const auto& message : messages) {
+      if (!message) continue;
+      rawMediaBytes.fetch_add(message->size(), std::memory_order_relaxed);
+      if (message->type == rtc::Message::Control || rtc::IsRtcp(*message)) {
+        rawRtcpPackets.fetch_add(1, std::memory_order_relaxed);
+        continue;
+      }
+      rawRtpPackets.fetch_add(1, std::memory_order_relaxed);
+      if (!firstRtpObserved.load(std::memory_order_acquire) &&
+          message->size() >= sizeof(rtc::RtpHeader)) {
+        const auto* header = reinterpret_cast<const rtc::RtpHeader*>(message->data());
+        bool expected = false;
+        if (firstRtpObserved.compare_exchange_strong(expected, true,
+                                                       std::memory_order_acq_rel)) {
+          firstRtpPayloadType.store(header->payloadType(), std::memory_order_relaxed);
+          firstRtpTimestamp.store(header->timestamp(), std::memory_order_relaxed);
+          firstRtpSsrc.store(header->ssrc(), std::memory_order_relaxed);
+        }
+      }
+    }
+  }
+
+  std::atomic<std::uint64_t> rawRtpPackets = 0;
+  std::atomic<std::uint64_t> rawRtcpPackets = 0;
+  std::atomic<std::uint64_t> rawMediaBytes = 0;
+  std::atomic<std::uint8_t> firstRtpPayloadType = 0;
+  std::atomic<std::uint32_t> firstRtpTimestamp = 0;
+  std::atomic<std::uint32_t> firstRtpSsrc = 0;
+  std::atomic_bool firstRtpObserved = false;
+};
+
+class TrackInputAudit final : public rtc::MediaHandler {
+ public:
+  void incoming(rtc::message_vector& messages,
+                const rtc::message_callback& /*send*/) override {
+    for (const auto& message : messages) {
+      if (!message) continue;
+      if (message->type == rtc::Message::Control || rtc::IsRtcp(*message)) {
+        trackRtcpPackets.fetch_add(1, std::memory_order_relaxed);
+      } else {
+        trackRtpPackets.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+  }
+
+  std::atomic<std::uint64_t> trackRtpPackets = 0;
+  std::atomic<std::uint64_t> trackRtcpPackets = 0;
+};
+
+class DepacketizerOutputAudit final : public rtc::MediaHandler {
+ public:
+  void incoming(rtc::message_vector& messages,
+                const rtc::message_callback& /*send*/) override {
+    for (const auto& message : messages) {
+      if (message && message->frameInfo) {
+        depacketizerFrames.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+  }
+
+  std::atomic<std::uint64_t> depacketizerFrames = 0;
+};
+
 }  // namespace
 
 struct LibDataChannelReceiver::Impl {
   std::shared_ptr<rtc::PeerConnection> peerConnection;
   std::shared_ptr<rtc::Track> track;
+  std::shared_ptr<IncomingMediaAudit> incomingMediaAudit;
+  std::shared_ptr<TrackInputAudit> trackInputAudit;
+  std::shared_ptr<DepacketizerOutputAudit> depacketizerOutputAudit;
 };
 
 LibDataChannelReceiver::LibDataChannelReceiver(LibDataChannelReceiverConfig config)
@@ -142,6 +214,8 @@ bool LibDataChannelReceiver::Start() {
 
     impl_ = std::make_unique<Impl>();
     impl_->peerConnection = std::make_shared<rtc::PeerConnection>(configuration);
+    impl_->incomingMediaAudit = std::make_shared<IncomingMediaAudit>();
+    impl_->peerConnection->setMediaHandler(impl_->incomingMediaAudit);
 
     impl_->peerConnection->onLocalDescription(
         [this](rtc::Description description) {
@@ -180,12 +254,26 @@ bool LibDataChannelReceiver::Start() {
       iceStateChanges_.fetch_add(1, std::memory_order_relaxed);
     });
 
-    rtc::Description::Video media("video", rtc::Description::Direction::RecvOnly);
-    media.addH264Codec(96);
-    media.setBitrate(static_cast<int>(config_.h264BitrateKbps));
-    impl_->track = impl_->peerConnection->addTrack(media);
-    impl_->track->setMediaHandler(std::make_shared<rtc::H264RtpDepacketizer>());
-    impl_->track->onFrame([this](rtc::binary data, rtc::FrameInfo info) {
+    impl_->peerConnection->onTrack([this](std::shared_ptr<rtc::Track> track) {
+      if (!track) return;
+      impl_->track = std::move(track);
+
+      // Configure the remote Track created from the browser's offer. A local
+      // placeholder Track is intentionally not added here: doing so can
+      // leave two track lines and make libdatachannel route RTP by an SSRC
+      // map that is not populated for the browser's remote Track.
+      // Keep the input audit and RTCP session in the receive chain before
+      // H.264 depacketization, while preserving the depacketized frameInfo
+      // messages for the output audit and onFrame callback.
+      auto h264Depacketizer = std::make_shared<rtc::H264RtpDepacketizer>();
+      impl_->trackInputAudit = std::make_shared<TrackInputAudit>();
+      impl_->depacketizerOutputAudit = std::make_shared<DepacketizerOutputAudit>();
+      h264Depacketizer->addToChain(impl_->trackInputAudit);
+      impl_->trackInputAudit->addToChain(std::make_shared<rtc::RtcpReceivingSession>());
+      auto outputAudit = impl_->depacketizerOutputAudit;
+      outputAudit->addToChain(h264Depacketizer);
+      impl_->track->setMediaHandler(outputAudit);
+      impl_->track->onFrame([this](rtc::binary data, rtc::FrameInfo info) {
       accessUnits_.fetch_add(1, std::memory_order_relaxed);
       accessUnitBytes_.fetch_add(data.size(), std::memory_order_relaxed);
       lastTimestamp_.store(info.timestamp, std::memory_order_relaxed);
@@ -197,6 +285,7 @@ bool LibDataChannelReceiver::Start() {
         }
         accessUnitHandler_(std::move(accessUnit), info.timestamp);
       }
+      });
     });
   } catch (const std::exception& error) {
     impl_.reset();
@@ -283,6 +372,33 @@ LibDataChannelReceiverMetrics LibDataChannelReceiver::metrics() const {
   result.accessUnitBytes = accessUnitBytes_.load(std::memory_order_relaxed);
   result.lastTimestamp = lastTimestamp_.load(std::memory_order_relaxed);
   if (impl_ && impl_->peerConnection) {
+    if (impl_->incomingMediaAudit) {
+      result.rawRtpPackets = impl_->incomingMediaAudit->rawRtpPackets.load(
+          std::memory_order_relaxed);
+      result.rawRtcpPackets = impl_->incomingMediaAudit->rawRtcpPackets.load(
+          std::memory_order_relaxed);
+      result.rawMediaBytes = impl_->incomingMediaAudit->rawMediaBytes.load(
+          std::memory_order_relaxed);
+      if (impl_->trackInputAudit) {
+        result.trackRtpPackets = impl_->trackInputAudit->trackRtpPackets.load(
+            std::memory_order_relaxed);
+        result.trackRtcpPackets = impl_->trackInputAudit->trackRtcpPackets.load(
+            std::memory_order_relaxed);
+      }
+      if (impl_->depacketizerOutputAudit) {
+        result.depacketizerFrames = impl_->depacketizerOutputAudit->depacketizerFrames.load(
+            std::memory_order_relaxed);
+      }
+      result.firstRtpPayloadType = impl_->incomingMediaAudit->firstRtpPayloadType.load(
+          std::memory_order_relaxed);
+      result.firstRtpTimestamp = impl_->incomingMediaAudit->firstRtpTimestamp.load(
+          std::memory_order_relaxed);
+      result.firstRtpSsrc = impl_->incomingMediaAudit->firstRtpSsrc.load(
+          std::memory_order_relaxed);
+      result.firstRtpObserved = impl_->incomingMediaAudit->firstRtpObserved.load(
+          std::memory_order_relaxed);
+    }
+    result.trackOpen = impl_->track && impl_->track->isOpen();
     result.bytesReceived = impl_->peerConnection->bytesReceived();
     if (const auto rtt = impl_->peerConnection->rtt()) {
       result.rttMilliseconds = rtt->count();

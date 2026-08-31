@@ -204,7 +204,14 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (now - lastReport >= std::chrono::seconds(1)) {
       const auto metrics = receiver.metrics();
-      std::cout << "Metrics: accessUnits=" << metrics.accessUnits
+      std::cout << "Metrics: rawRtpPackets=" << metrics.rawRtpPackets
+                << " rawRtcpPackets=" << metrics.rawRtcpPackets
+                << " rawMediaBytes=" << metrics.rawMediaBytes
+                << " trackRtpPackets=" << metrics.trackRtpPackets
+                << " trackRtcpPackets=" << metrics.trackRtcpPackets
+                << " depacketizerFrames=" << metrics.depacketizerFrames
+                << " firstRtp=" << (metrics.firstRtpObserved ? "yes" : "no")
+                << " accessUnits=" << metrics.accessUnits
                 << " lastRtpTimestamp=" << metrics.lastTimestamp
                 << " peerState="
                 << cambridge::native::receiver::ReceiverPeerStateName(metrics.peerState)
@@ -244,7 +251,17 @@ int wmain(int argc, wchar_t** argv) {
 
   const auto metrics = receiver.metrics();
   std::cout << "Receiver: stopping\n"
-            << "Final metrics: accessUnits=" << metrics.accessUnits
+            << "Final metrics: rawRtpPackets=" << metrics.rawRtpPackets
+            << " rawRtcpPackets=" << metrics.rawRtcpPackets
+            << " rawMediaBytes=" << metrics.rawMediaBytes
+            << " trackRtpPackets=" << metrics.trackRtpPackets
+            << " trackRtcpPackets=" << metrics.trackRtcpPackets
+            << " depacketizerFrames=" << metrics.depacketizerFrames
+            << " firstRtp=" << (metrics.firstRtpObserved ? "yes" : "no")
+            << " firstRtpPayloadType=" << static_cast<unsigned int>(metrics.firstRtpPayloadType)
+            << " firstRtpTimestamp=" << metrics.firstRtpTimestamp
+            << " firstRtpSsrc=" << metrics.firstRtpSsrc
+            << " accessUnits=" << metrics.accessUnits
             << " lastRtpTimestamp=" << metrics.lastTimestamp
             << " peerState="
             << cambridge::native::receiver::ReceiverPeerStateName(metrics.peerState)

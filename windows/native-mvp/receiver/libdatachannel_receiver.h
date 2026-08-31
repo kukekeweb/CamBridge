@@ -38,6 +38,17 @@ enum class ReceiverIceState {
 };
 
 struct LibDataChannelReceiverMetrics {
+  std::uint64_t rawRtpPackets = 0;
+  std::uint64_t rawRtcpPackets = 0;
+  std::uint64_t rawMediaBytes = 0;
+  std::uint64_t trackRtpPackets = 0;
+  std::uint64_t trackRtcpPackets = 0;
+  std::uint64_t depacketizerFrames = 0;
+  std::uint8_t firstRtpPayloadType = 0;
+  std::uint32_t firstRtpTimestamp = 0;
+  std::uint32_t firstRtpSsrc = 0;
+  bool firstRtpObserved = false;
+  bool trackOpen = false;
   std::uint64_t accessUnits = 0;
   std::uint64_t accessUnitBytes = 0;
   std::uint32_t lastTimestamp = 0;
