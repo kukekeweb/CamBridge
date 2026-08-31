@@ -7,10 +7,12 @@ CamBridge treats the Stage 2 1080p target as two exact layouts:
 - landscape: `1920×1080 @ 60fps`
 - portrait: `1080×1920 @ 60fps`
 
-The Web Client derives `auto` from Safari's `screen.orientation.type` and
-viewport dimensions. Explicit `portrait` or `landscape` selection takes
-precedence. The active track dimensions are the transport contract; the preview
-does not apply a second CSS rotation.
+The Web Client uses the proven landscape dimension request for `auto` and then
+derives the effective orientation from the returned track. This avoids forcing
+Safari into an unverified portrait exact-format path that may reduce 60fps to
+30fps. Explicit `portrait` or `landscape` selection remains strict. The active
+track dimensions are the transport contract; the preview does not apply a
+second CSS rotation.
 
 ## Automated evidence
 

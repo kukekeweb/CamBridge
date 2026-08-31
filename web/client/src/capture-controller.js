@@ -65,7 +65,14 @@ export class CaptureController {
       cameraId: deviceId ?? null,
       captureOrientation,
     };
-    const constraints = buildExactVideoConstraints(settings, deviceId, captureOrientation);
+    // Safari devices can expose a portrait track even when the proven 60fps
+    // request is expressed as landscape dimensions. In auto mode, keep the
+    // exact, validated 60fps capture request and derive orientation from the
+    // returned track instead of forcing a portrait dimension request.
+    const constraintOrientation = settings.orientation === "auto"
+      ? "landscape"
+      : captureOrientation;
+    const constraints = buildExactVideoConstraints(settings, deviceId, constraintOrientation);
     let stream;
     try {
       stream = await this.mediaDevices.getUserMedia(constraints);
