@@ -47,6 +47,7 @@ class NativeSignalingSession {
   bool Fail(std::string message);
   bool Send(std::string message);
   void CreateReceiver();
+  bool RestartReceiverForNextOffer(const std::string& sessionId);
 
   NativeSignalingSessionConfig config_;
   std::unique_ptr<LibDataChannelReceiver> receiver_;

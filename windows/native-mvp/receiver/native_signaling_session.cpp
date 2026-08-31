@@ -26,6 +26,18 @@ void NativeSignalingSession::CreateReceiver() {
   if (accessUnitHandler_) receiver_->SetAccessUnitHandler(accessUnitHandler_);
 }
 
+bool NativeSignalingSession::RestartReceiverForNextOffer(const std::string& sessionId) {
+  if (sessionId.empty()) return Fail("session id is empty");
+  if (receiver_) receiver_->Close();
+  pendingIce_.clear();
+  config_.sessionId = sessionId;
+  started_ = false;
+  CreateReceiver();
+  if (!Start()) return false;
+  lastError_.clear();
+  return true;
+}
+
 NativeSignalingSession::~NativeSignalingSession() { Close(); }
 
 bool NativeSignalingSession::Fail(std::string message) {
@@ -76,11 +88,13 @@ bool NativeSignalingSession::OnSocketMessage(const std::string& message) {
   std::string error;
   if (!ParseSignalingMessage(message, &parsed, &error)) return Fail(error);
   if (parsed.sessionId != config_.sessionId) {
-    if (!automaticSession_ || !receiver_->AdoptSessionId(parsed.sessionId)) {
+    if (!automaticSession_) return Fail("session mismatch");
+    if (receiver_->state() == ReceiverState::Disconnected) {
+      if (!RestartReceiverForNextOffer(parsed.sessionId)) return false;
+    } else if (!receiver_->AdoptSessionId(parsed.sessionId)) {
       return Fail("session mismatch");
     }
     config_.sessionId = parsed.sessionId;
-    automaticSession_ = false;
   }
 
   if (parsed.type == SignalingMessageType::Ice) {
@@ -96,6 +110,10 @@ bool NativeSignalingSession::OnSocketMessage(const std::string& message) {
   }
 
   if (parsed.type == SignalingMessageType::Offer) {
+    if (receiver_->state() == ReceiverState::Disconnected &&
+        !RestartReceiverForNextOffer(parsed.sessionId)) {
+      return false;
+    }
     if (!receiver_->AcceptOffer(parsed.sessionId, parsed.sdp)) {
       return Fail(receiver_->lastError());
     }
@@ -111,8 +129,7 @@ bool NativeSignalingSession::OnSocketMessage(const std::string& message) {
   }
 
   if (parsed.type == SignalingMessageType::Close) {
-    Close();
-    return true;
+    return RestartReceiverForNextOffer(config_.sessionId);
   }
   return Fail("unexpected signaling message");
 }

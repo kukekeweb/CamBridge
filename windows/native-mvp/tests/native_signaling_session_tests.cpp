@@ -79,6 +79,31 @@ void TestIceBeforeOfferIsQueued() {
   assert(session.state() == ReceiverState::WaitingForOffer);
 }
 
+void TestCloseMessageKeepsSignalingSocketAvailableForReconnect() {
+  NativeSignalingSession session({"s-reconnect", "192.168.11.2", 5000});
+  std::mutex mutex;
+  std::condition_variable condition;
+  std::vector<std::string> sent;
+  session.SetSendHandler([&](const std::string& message) {
+    {
+      std::lock_guard lock(mutex);
+      sent.push_back(message);
+    }
+    condition.notify_all();
+  });
+
+  assert(session.Start());
+  assert(session.OnSocketOpen());
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"offer","sessionId":"s-reconnect","sdp":"v=0\r\no=- 1 1 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test\r\na=ice-pwd:test-password\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\na=setup:actpass\r\n"})"));
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"close","sessionId":"s-reconnect"})"));
+  assert(session.state() == ReceiverState::WaitingForOffer);
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"offer","sessionId":"s-reconnect","sdp":"v=0\r\no=- 2 2 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test2\r\na=ice-pwd:test-password2\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\na=setup:actpass\r\n"})"));
+  assert(session.state() == ReceiverState::OfferReceived);
+}
+
 void TestRestartCreatesFreshSessionAfterClose() {
   NativeSignalingSession session({"s3", "192.168.11.2", 5000});
   std::vector<std::string> sent;
@@ -141,6 +166,7 @@ void TestIgnoresNonPrivateIceCandidate() {
 int main() {
   TestHelloAndOfferAnswer();
   TestIceBeforeOfferIsQueued();
+  TestCloseMessageKeepsSignalingSocketAvailableForReconnect();
   TestRestartCreatesFreshSessionAfterClose();
   TestAutomaticSessionAdoptsBrowserOfferId();
   TestIgnoresNonPrivateIceCandidate();
