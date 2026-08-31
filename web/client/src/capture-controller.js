@@ -24,9 +24,11 @@ function errorMessage(error) {
 
 export function matchesRequestedCapture(settings, actual, captureOrientation = undefined) {
   const dimensions = captureDimensions(settings, captureOrientation);
+  const directDimensions = actual.width === dimensions.width && actual.height === dimensions.height;
+  const autoOrientation = settings?.orientation === "auto";
+  const swappedDimensions = actual.width === dimensions.height && actual.height === dimensions.width;
   return (
-    actual.width === dimensions.width &&
-    actual.height === dimensions.height &&
+    (directDimensions || (autoOrientation && swappedDimensions)) &&
     typeof actual.frameRate === "number" &&
     Math.abs(actual.frameRate - settings.frameRate) < 0.5
   );
@@ -109,6 +111,11 @@ export class CaptureController {
       };
     }
 
+    const effectiveOrientation = settings.orientation === "auto"
+      ? resolveCaptureOrientation({ orientation: "auto" }, actualSettings)
+      : captureOrientation;
+    requestedSettings.captureOrientation = effectiveOrientation;
+
     this.stream = stream;
     this.track = track;
     this.video.srcObject = stream;
@@ -124,7 +131,7 @@ export class CaptureController {
       actualSettings,
       capabilities,
       constraints: actualConstraints,
-      outputPlan: createOutputPlan({ ...settings, orientation: captureOrientation }),
+      outputPlan: createOutputPlan({ ...settings, orientation: effectiveOrientation }),
       stream,
       track,
       message: TEXT.captureRunning,

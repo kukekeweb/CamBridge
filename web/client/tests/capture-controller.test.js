@@ -118,3 +118,27 @@ test("auto orientation requests and accepts the viewport's portrait layout", asy
   assert.equal(result.ok, true);
   assert.equal(result.requestedSettings.captureOrientation, "portrait");
 });
+
+test("auto orientation accepts Safari's opposite exact layout and records the actual orientation", async () => {
+  const track = fakeTrack({ width: 1080, height: 1920, frameRate: 60 });
+  const stream = { getVideoTracks: () => [track] };
+  const video = { srcObject: null, async play() {} };
+  const controller = new CaptureController({
+    mediaDevices: {
+      async getUserMedia(constraints) {
+        assert.deepEqual(constraints.video.width, { exact: 1920 });
+        assert.deepEqual(constraints.video.height, { exact: 1080 });
+        return stream;
+      },
+    },
+    video,
+    meter: { start() {}, stop() {} },
+    orientationProvider: () => ({ screenOrientationType: "landscape-primary", width: 844, height: 390 }),
+  });
+
+  const result = await controller.start(createSettings({ orientation: "auto" }), "back");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.requestedSettings.captureOrientation, "portrait");
+  assert.equal(result.outputPlan.orientation, "portrait");
+});
