@@ -1,5 +1,7 @@
 import {
   enumerateVideoInputs,
+  enumerateVideoInputExposure,
+  findActiveCaptureDevice,
   probeVideoDeviceExposure,
   probeCodecCapabilities,
   probeLowLatencyAPIs,
@@ -103,9 +105,16 @@ function populateCameraSelect() {
   const previous = select.value;
   select.replaceChildren();
   if (devices.length === 0) {
+    select.disabled = true;
     select.append(new Option(TEXT.noVideoInputs, ""));
     return;
   }
+  if (!devices.some((device) => device.deviceId)) {
+    select.disabled = true;
+    select.append(new Option(TEXT.cameraSelectionPending, ""));
+    return;
+  }
+  select.disabled = false;
   devices.forEach((device, index) => {
     const label = formatCameraLabel(device.label, index);
     select.append(new Option(label, device.deviceId || ""));
@@ -329,6 +338,37 @@ async function refreshDevicesAfterPermission() {
   return devices;
 }
 
+async function primeRearCameraForSelection() {
+  const primingStream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: { facingMode: { exact: "environment" } },
+  });
+  const [primingTrack] = primingStream.getVideoTracks?.() ?? [];
+  if (!primingTrack) {
+    primingStream.getTracks?.().forEach((track) => track.stop());
+    throw { name: "NotFoundError", message: TEXT.captureNoTrack };
+  }
+
+  try {
+    const activeDevices = await enumerateVideoInputExposure(navigator.mediaDevices);
+    const selectedDevice = findActiveCaptureDevice(activeDevices, primingTrack);
+    devices = activeDevices;
+    populateCameraSelect();
+    $("devices-output").textContent = json(devices);
+
+    if (!selectedDevice) {
+      throw { name: "DeviceIdentityUnavailable", message: "" };
+    }
+
+    $("camera-select").value = selectedDevice.deviceId;
+    latestSettings = readSettings();
+    renderRequested(latestSettings);
+    return selectedDevice.deviceId;
+  } finally {
+    primingStream.getTracks?.().forEach((track) => track.stop());
+  }
+}
+
 function selectedDeviceFrom(refreshedDevices, selectedId) {
   return refreshedDevices.find((device) => device.deviceId === selectedId) || refreshedDevices[0];
 }
@@ -352,14 +392,20 @@ refreshDevices();
 
 $("start-button").addEventListener("click", async () => {
   closeWebRtcSender();
-  const settings = readSettings();
-  latestSettings = settings;
-  renderRequested(settings);
   $("capture-status").textContent = TEXT.captureStarting;
   $("capture-status").className = "status";
   $("start-button").disabled = true;
   try {
-    const result = await controller.start(settings, settings.cameraId);
+    let cameraId = $("camera-select").value || null;
+    if (!cameraId) {
+      $("capture-status").textContent = TEXT.cameraSelectionPriming;
+      cameraId = await primeRearCameraForSelection();
+    }
+
+    const settings = readSettings();
+    latestSettings = settings;
+    renderRequested(settings);
+    const result = await controller.start(settings, cameraId);
     $("settings-output").textContent = formatSettings(result.actualSettings ?? {});
     $("capabilities-output").textContent = formatCapabilities(result.capabilities ?? {});
     $("constraints-output").textContent = formatConstraints(result.constraints ?? {});

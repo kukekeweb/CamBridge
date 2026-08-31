@@ -9,6 +9,7 @@ import {
   snapshotTrackCapabilities,
   snapshotTrackConstraints,
   snapshotTrackSettings,
+  findActiveCaptureDevice,
 } from "../src/capability-probe.js";
 
 test("enumerateVideoInputs preserves returned device fields", async () => {
@@ -26,6 +27,26 @@ test("enumerateVideoInputs preserves returned device fields", async () => {
     { kind: "videoinput", label: "Back", deviceId: "back", groupId: "group" },
     { kind: "videoinput", label: "Front", deviceId: "front" },
   ]);
+});
+
+test("active capture device resolution uses the priming track deviceId without falling back", () => {
+  const devices = [
+    { kind: "videoinput", label: "Back", deviceId: "back", groupId: "group-back" },
+    { kind: "videoinput", label: "Front", deviceId: "front", groupId: "group-front" },
+  ];
+
+  assert.deepEqual(
+    findActiveCaptureDevice(devices, { getSettings: () => ({ deviceId: "back", facingMode: "environment" }) }),
+    devices[0],
+  );
+  assert.equal(
+    findActiveCaptureDevice(devices, { getSettings: () => ({ deviceId: "" }) }),
+    null,
+  );
+  assert.equal(
+    findActiveCaptureDevice(devices, { getSettings: () => ({ deviceId: "unknown" }) }),
+    null,
+  );
 });
 
 test("device exposure probe enumerates while the priming track is live, then records after-stop exposure", async () => {

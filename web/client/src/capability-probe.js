@@ -79,6 +79,12 @@ export async function enumerateVideoInputExposure(mediaDevices) {
     }));
 }
 
+export function findActiveCaptureDevice(devices, track) {
+  const deviceId = track?.getSettings?.()?.deviceId;
+  if (!deviceId) return null;
+  return devices.find((device) => device.deviceId === deviceId) || null;
+}
+
 export function summariseVideoInputExposure(devices) {
   const entries = devices.map((device, index) => ({
     index: index + 1,
