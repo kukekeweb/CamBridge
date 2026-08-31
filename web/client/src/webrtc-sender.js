@@ -204,6 +204,7 @@ export class WebRtcSender {
       };
 
       this.websocket = this.webSocketFactory(this.signalingUrl);
+      const activeSocket = this.websocket;
       return await new Promise((resolve, reject) => {
         let settled = false;
         const resolveOnce = () => {
@@ -218,7 +219,7 @@ export class WebRtcSender {
             reject(error);
           }
         };
-        this.websocket.onopen = async () => {
+        activeSocket.onopen = async () => {
           try {
             this.send({ type: "hello", role: "browser", sessionId: this.sessionId });
             const offer = await this.peerConnection.createOffer();
@@ -237,7 +238,7 @@ export class WebRtcSender {
             rejectOnce(error);
           }
         };
-        this.websocket.onmessage = async (event) => {
+        activeSocket.onmessage = async (event) => {
           try {
             const message = JSON.parse(event.data);
             if (message.sessionId !== this.sessionId) throw new Error(TEXT.webrtcSessionMismatch);
@@ -262,12 +263,14 @@ export class WebRtcSender {
             this.fail(error);
           }
         };
-        this.websocket.onerror = () => {
+        activeSocket.onerror = () => {
           const error = new Error(TEXT.webrtcSocketError);
           this.fail(error);
           rejectOnce(error);
         };
-        this.websocket.onclose = () => {
+        activeSocket.onclose = () => {
+          if (this.websocket !== activeSocket) return;
+          this.resetTransport({ closeWebSocket: false });
           if (this.state !== "closed") this.emitStatus("closed");
         };
       });
@@ -313,18 +316,26 @@ export class WebRtcSender {
     this.onStatus(`error: ${errorMessage(error)}`);
   }
 
-  close() {
+  resetTransport({ closeWebSocket = true } = {}) {
     if (this.statsTimer !== null) {
       globalThis.clearInterval(this.statsTimer);
       this.statsTimer = null;
     }
     this.previousStats = null;
-    this.peerConnection?.close?.();
-    this.websocket?.close?.();
+    const peerConnection = this.peerConnection;
+    const websocket = this.websocket;
     this.peerConnection = null;
     this.transceiver = null;
     this.websocket = null;
     this.pendingIceCandidates = [];
+    peerConnection?.close?.();
+    if (closeWebSocket && websocket && websocket.readyState !== 3) {
+      websocket.close?.();
+    }
+  }
+
+  close() {
+    this.resetTransport();
     this.emitStatus("closed");
   }
 }

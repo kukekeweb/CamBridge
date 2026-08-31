@@ -169,6 +169,33 @@ test("queues ICE candidates emitted before the signaling socket opens", async ()
   sender.close();
 });
 
+test("cleans up an unexpected signaling close so the sender can reconnect", async () => {
+  const statuses = [];
+  const sender = makeSender({ onStatus: (status) => statuses.push(status) });
+  const firstConnect = sender.connect();
+  const firstSocket = FakeWebSocket.instances[0];
+  const firstPeer = FakePeerConnection.instances[0];
+  firstSocket.open();
+  await firstConnect;
+  firstSocket.receive({ version: 1, type: "answer", sessionId: "s1", sdp: "v=0\r\nm=video" });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  firstSocket.readyState = 3;
+  firstSocket.onclose?.();
+
+  assert.equal(firstPeer.connectionState, "closed");
+  assert.equal(sender.peerConnection, null);
+  assert.equal(sender.websocket, null);
+  assert.ok(statuses.includes("closed"));
+
+  const secondConnect = sender.connect();
+  const secondSocket = FakeWebSocket.instances[1];
+  secondSocket.open();
+  await secondConnect;
+  assert.notEqual(FakePeerConnection.instances[1], firstPeer);
+  sender.close();
+});
+
 test("summarizes outbound video stats and the negotiated codec", () => {
   const report = new Map([
     ["outbound-1", {
