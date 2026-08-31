@@ -243,8 +243,16 @@ bool LibDataChannelReceiver::AcceptOffer(const std::string& sessionId,
 }
 
 bool LibDataChannelReceiver::AddRemoteCandidate(const std::string& candidate,
-                                                const std::string& mid) {
+                                                 const std::string& mid) {
   const CandidateResult validation = session_.AcceptIce(candidate);
+  if (validation.error == ReceiverError::RelayRejected ||
+      validation.error == ReceiverError::NonPrivateHostRejected) {
+    // Browser ICE gathering can expose VPN/public/IPv6 host candidates. They
+    // are outside the LAN-only policy, but must not terminate the signaling
+    // session before a usable private IPv4 candidate arrives.
+    lastError_.clear();
+    return true;
+  }
   if (validation.error != ReceiverError::None) {
     return Fail(ReceiverErrorName(validation.error));
   }

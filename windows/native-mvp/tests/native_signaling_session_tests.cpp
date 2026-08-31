@@ -124,6 +124,18 @@ void TestAutomaticSessionAdoptsBrowserOfferId() {
   assert(answer != sent.end());
   assert(answer->find("\"sessionId\":\"browser-auto\"") != std::string::npos);
 }
+
+void TestIgnoresNonPrivateIceCandidate() {
+  NativeSignalingSession session({"s5", "192.168.11.2", 5000});
+  session.SetSendHandler([](const std::string&) {});
+  assert(session.Start());
+  assert(session.OnSocketOpen());
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"offer","sessionId":"s5","sdp":"v=0\r\no=- 1 1 IN IP4 192.168.11.2\r\ns=-\r\nt=0 0\r\nm=video 50000 UDP/TLS/RTP/SAVPF 96\r\na=mid:0\r\na=sendonly\r\na=rtpmap:96 H264/90000\r\na=ice-ufrag:test\r\na=ice-pwd:test-password\r\na=fingerprint:sha-256 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF\r\na=setup:actpass\r\n"})"));
+  assert(session.OnSocketMessage(
+      R"({"version":1,"type":"ice","sessionId":"s5","candidate":{"candidate":"candidate:1 1 UDP 2122260223 26.26.211.206 51125 typ host generation 0","sdpMid":"0"}})"));
+  assert(session.state() == ReceiverState::OfferReceived);
+}
 }  // namespace
 
 int main() {
@@ -131,6 +143,7 @@ int main() {
   TestIceBeforeOfferIsQueued();
   TestRestartCreatesFreshSessionAfterClose();
   TestAutomaticSessionAdoptsBrowserOfferId();
+  TestIgnoresNonPrivateIceCandidate();
   std::cout << "CamBridge native signaling session tests passed\n";
   return 0;
 }
