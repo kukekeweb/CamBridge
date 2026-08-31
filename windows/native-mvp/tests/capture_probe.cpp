@@ -425,9 +425,18 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOu
   *childExitCode = 1;
   childOutput->clear();
   *childDiagnosticPath = MakeChildDiagnosticPath();
+  wchar_t tempPath[MAX_PATH]{};
+  const DWORD tempPathLength = GetTempPathW(ARRAYSIZE(tempPath), tempPath);
+  if (tempPathLength == 0 || tempPathLength >= ARRAYSIZE(tempPath)) return false;
+  wchar_t outputPath[MAX_PATH]{};
+  if (GetTempFileNameW(tempPath, L"CBP", 0, outputPath) == 0) return false;
+  const std::wstring childOutputPath(outputPath);
   wchar_t modulePath[MAX_PATH]{};
   const DWORD length = GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath));
-  if (length == 0 || length >= ARRAYSIZE(modulePath)) return false;
+  if (length == 0 || length >= ARRAYSIZE(modulePath)) {
+    (void)DeleteFileW(childOutputPath.c_str());
+    return false;
+  }
   std::wstring commandLine = L"\"" + std::wstring(modulePath, length) +
                              L"\" --capture-child --diagnostic-file \"" +
                              *childDiagnosticPath + L"\"";
@@ -438,26 +447,25 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOu
   SECURITY_ATTRIBUTES security{};
   security.nLength = sizeof(security);
   security.bInheritHandle = TRUE;
-  HANDLE outputRead = nullptr;
-  HANDLE outputWrite = nullptr;
-  if (!CreatePipe(&outputRead, &outputWrite, &security, 0)) return false;
-  if (!SetHandleInformation(outputRead, HANDLE_FLAG_INHERIT, 0)) {
-    CloseHandle(outputRead);
-    CloseHandle(outputWrite);
+  HANDLE outputFile = CreateFileW(childOutputPath.c_str(), GENERIC_WRITE,
+                                  FILE_SHARE_READ | FILE_SHARE_WRITE, &security,
+                                  CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (outputFile == INVALID_HANDLE_VALUE) {
+    (void)DeleteFileW(childOutputPath.c_str());
     return false;
   }
   startup.dwFlags = STARTF_USESTDHANDLES;
   startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-  startup.hStdOutput = outputWrite;
-  startup.hStdError = outputWrite;
+  startup.hStdOutput = outputFile;
+  startup.hStdError = outputFile;
   PROCESS_INFORMATION process{};
   if (!CreateProcessW(nullptr, mutableCommand.data(), nullptr, nullptr, TRUE, 0, nullptr,
                       nullptr, &startup, &process)) {
-    CloseHandle(outputRead);
-    CloseHandle(outputWrite);
+    CloseHandle(outputFile);
+    (void)DeleteFileW(childOutputPath.c_str());
     return false;
   }
-  CloseHandle(outputWrite);
+  CloseHandle(outputFile);
   const DWORD waitResult = WaitForSingleObject(process.hProcess, timeoutMs);
   if (waitResult == WAIT_TIMEOUT) {
     (void)TerminateProcess(process.hProcess, WAIT_TIMEOUT);
@@ -465,17 +473,14 @@ bool RunBoundedChild(DWORD timeoutMs, DWORD* childExitCode, std::string* childOu
   } else if (waitResult != WAIT_OBJECT_0 || !GetExitCodeProcess(process.hProcess, childExitCode)) {
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
-    CloseHandle(outputRead);
+    *childOutput = ReadBinaryFile(childOutputPath);
+    (void)DeleteFileW(childOutputPath.c_str());
     return false;
   }
-  char buffer[4096];
-  DWORD bytesRead = 0;
-  while (ReadFile(outputRead, buffer, sizeof(buffer), &bytesRead, nullptr) && bytesRead != 0) {
-    childOutput->append(buffer, bytesRead);
-  }
+  *childOutput = ReadBinaryFile(childOutputPath);
+  (void)DeleteFileW(childOutputPath.c_str());
   const std::string fileOutput = ReadBinaryFile(*childDiagnosticPath);
   if (!fileOutput.empty()) *childOutput = fileOutput;
-  CloseHandle(outputRead);
   if (waitResult == WAIT_TIMEOUT) {
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
