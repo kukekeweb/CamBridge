@@ -83,14 +83,15 @@ the real iPhone acceptance; fake-clock unit tests do not replace it.
 
 ## Stage 2 WebRTC sender probe
 
-After the camera has been started successfully at exact 1920×1080 @ 60fps, the
+After the camera has been started successfully at exact 1920×1080 or 1080×1920
+@ 60fps, the
 **WebRTC接続** button creates a browser-side `RTCPeerConnection` and sends an
 Offer over the same-origin WSS endpoint `/signaling`. ICE servers are empty by
 design: the initial probe is LAN-only and does not use external STUN or TURN.
 The sender filters runtime `RTCRtpSender.getCapabilities("video")` to H.264
 and refuses to connect when H.264 is not exposed or the active camera Track is
-not exactly 1920×1080 @ 60fps. It does not silently downgrade the camera or
-select another codec.
+not exactly one of the two 1080p layouts at 60fps. It does not silently
+downgrade the camera, rotate the track with CSS, or select another codec.
 
 This is the browser-side signaling/sender slice. The Windows native receiver,
 H.264 decoder, decoded-frame IPC publisher, and existing Virtual Camera path

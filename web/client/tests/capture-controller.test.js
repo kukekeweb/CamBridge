@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CaptureController } from "../src/capture-controller.js";
+import { CaptureController, matchesRequestedCapture } from "../src/capture-controller.js";
 import { createSettings } from "../src/settings.js";
 
 function fakeTrack(settings) {
@@ -83,4 +83,38 @@ test("successful capture attaches the stream and starts empirical measurement", 
   assert.equal(result.status, "running");
   assert.equal(video.srcObject, stream);
   assert.equal(meterArguments[1], 60);
+});
+
+test("portrait capture accepts an exact 1080x1920 track at 60fps", () => {
+  const settings = createSettings({
+    orientation: "portrait",
+    resolution: { width: 1920, height: 1080 },
+    frameRate: 60,
+  });
+
+  assert.equal(matchesRequestedCapture(settings, { width: 1080, height: 1920, frameRate: 60 }), true);
+  assert.equal(matchesRequestedCapture(settings, { width: 1920, height: 1080, frameRate: 60 }), false);
+});
+
+test("auto orientation requests and accepts the viewport's portrait layout", async () => {
+  const track = fakeTrack({ width: 1080, height: 1920, frameRate: 60 });
+  const stream = { getVideoTracks: () => [track] };
+  const video = { srcObject: null, async play() {} };
+  const controller = new CaptureController({
+    mediaDevices: {
+      async getUserMedia(constraints) {
+        assert.deepEqual(constraints.video.width, { exact: 1080 });
+        assert.deepEqual(constraints.video.height, { exact: 1920 });
+        return stream;
+      },
+    },
+    video,
+    meter: { start() {}, stop() {} },
+    orientationProvider: () => ({ screenOrientationType: "portrait-primary", width: 390, height: 844 }),
+  });
+
+  const result = await controller.start(createSettings({ orientation: "auto" }), "back");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.requestedSettings.captureOrientation, "portrait");
 });

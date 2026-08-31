@@ -33,12 +33,44 @@ export function createSettings(overrides = {}) {
   };
 }
 
-export function buildExactVideoConstraints(settings, deviceId = settings.cameraId) {
+export function resolveCaptureOrientation(settings, viewport = {}) {
+  if (settings?.orientation === "portrait" || settings?.orientation === "landscape") {
+    return settings.orientation;
+  }
+
+  const screenOrientationType = String(viewport.screenOrientationType ?? "").toLowerCase();
+  if (screenOrientationType.includes("portrait")) {
+    return "portrait";
+  }
+  if (screenOrientationType.includes("landscape")) {
+    return "landscape";
+  }
+
+  const width = Number(viewport.width);
+  const height = Number(viewport.height);
+  return width > 0 && height > width ? "portrait" : "landscape";
+}
+
+export function captureDimensions(settings, orientationOverride = undefined) {
+  const resolution = settings?.resolution ?? RESOLUTIONS[0];
+  const orientation = orientationOverride ?? resolveCaptureOrientation(settings);
+  if (orientation === "portrait") {
+    return { width: Number(resolution.height), height: Number(resolution.width) };
+  }
+  return { width: Number(resolution.width), height: Number(resolution.height) };
+}
+
+export function buildExactVideoConstraints(
+  settings,
+  deviceId = settings.cameraId,
+  orientationOverride = undefined,
+) {
+  const dimensions = captureDimensions(settings, orientationOverride);
   const constraints = {
     audio: false,
     video: {
-      width: { exact: settings.resolution.width },
-      height: { exact: settings.resolution.height },
+      width: { exact: dimensions.width },
+      height: { exact: dimensions.height },
       frameRate: { exact: settings.frameRate },
     },
   };
@@ -55,18 +87,19 @@ export function createOutputPlan(settings) {
     width: settings.resolution.width,
     height: settings.resolution.height,
   };
-  const portrait = settings.orientation === "portrait";
-  const outputDimensions = portrait
-    ? { width: requestedDimensions.height, height: requestedDimensions.width }
-    : { ...requestedDimensions };
+  const orientation = resolveCaptureOrientation(settings);
+  const portrait = orientation === "portrait";
+  const outputDimensions = captureDimensions(settings, orientation);
 
   return {
     requestedDimensions,
     requestedFPS: settings.frameRate,
     outputDimensions,
-    rotationDegrees: portrait ? 90 : 0,
-    orientation: settings.orientation,
-    transportTransform: "future-stage-2",
+    // The capture track already carries the selected orientation in its dimensions.
+    // Do not rotate it again in the preview or transport layer.
+    rotationDegrees: 0,
+    orientation,
+    transportTransform: "identity",
     fallback: false,
   };
 }

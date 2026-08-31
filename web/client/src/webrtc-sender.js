@@ -18,8 +18,8 @@ function runtimeH264Codecs(senderCapabilities) {
 function exactTarget(track) {
   const settings = track?.getSettings?.() ?? {};
   return (
-    settings.width === TARGET_WIDTH &&
-    settings.height === TARGET_HEIGHT &&
+    ((settings.width === TARGET_WIDTH && settings.height === TARGET_HEIGHT) ||
+      (settings.width === TARGET_HEIGHT && settings.height === TARGET_WIDTH)) &&
     typeof settings.frameRate === "number" &&
     Math.abs(settings.frameRate - TARGET_FPS) < 0.5
   );
@@ -27,6 +27,12 @@ function exactTarget(track) {
 
 function formatTrackSettings(settings) {
   return `${settings?.width ?? "?"}×${settings?.height ?? "?"} / ${settings?.frameRate ?? "?"}fps`;
+}
+
+export function formatWebRtcLayout(settings) {
+  if (settings?.width === TARGET_WIDTH && settings?.height === TARGET_HEIGHT) return "横向き";
+  if (settings?.width === TARGET_HEIGHT && settings?.height === TARGET_WIDTH) return "縦向き";
+  return "不明";
 }
 
 export function formatWebRtcTrackRequirementError(track, stream) {
@@ -37,7 +43,7 @@ export function formatWebRtcTrackRequirementError(track, stream) {
     settings = {};
   }
   const trackDescription = track
-    ? `${formatTrackSettings(settings)}, readyState=${track.readyState ?? "unknown"}`
+    ? `${formatTrackSettings(settings)}, ${formatWebRtcLayout(settings)}, readyState=${track.readyState ?? "unknown"}`
     : "なし";
   const streamDescription = stream ? "あり" : "なし";
   return `${TEXT.webrtcRequiresExactTrack}（現在のTrack: ${trackDescription}, Stream: ${streamDescription}）`;

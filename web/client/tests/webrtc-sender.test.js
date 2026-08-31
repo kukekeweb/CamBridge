@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   WebRtcSender,
+  formatWebRtcLayout,
   formatWebRtcTrackRequirementError,
   summarizeWebRtcStats,
 } from "../src/webrtc-sender.js";
@@ -161,7 +162,7 @@ test("describes the current track when WebRTC cannot start", () => {
       readyState: "live",
       getSettings: () => ({ width: 1920, height: 1080, frameRate: 60 }),
     }, null),
-    /現在のTrack: 1920×1080 \/ 60fps, readyState=live, Stream: なし/,
+    /現在のTrack: 1920×1080 \/ 60fps, 横向き, readyState=live, Stream: なし/,
   );
 });
 
@@ -173,6 +174,27 @@ test("reports the exact-track precondition failure through the status callback",
   });
   await assert.rejects(sender.connect(), /1920×1080.*60/);
   assert.match(statuses.at(-1), /^error: .*現在のTrack: 1920×1080 \/ 30fps/);
+});
+
+test("accepts a portrait 1080x1920 track at 60fps", async () => {
+  const sender = makeSender({
+    track: { readyState: "live", getSettings: () => ({ width: 1080, height: 1920, frameRate: 60 }) },
+  });
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  await connectPromise;
+  assert.equal(formatWebRtcLayout({ width: 1080, height: 1920 }), "縦向き");
+  assert.equal(socket.sent[1].type, "offer");
+  sender.close();
+});
+
+test("keeps unsupported dimensions rejected", async () => {
+  const sender = makeSender({
+    track: { readyState: "live", getSettings: () => ({ width: 1280, height: 720, frameRate: 60 }) },
+  });
+  await assert.rejects(sender.connect(), /1920×1080.*60/);
+  assert.equal(formatWebRtcLayout({ width: 1280, height: 720 }), "不明");
 });
 
 test("queues ICE candidates emitted before the signaling socket opens", async () => {

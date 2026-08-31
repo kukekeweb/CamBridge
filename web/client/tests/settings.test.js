@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildExactVideoConstraints,
+  captureDimensions,
   createOutputPlan,
   createSettings,
+  resolveCaptureOrientation,
 } from "../src/settings.js";
 
 test("buildExactVideoConstraints uses exact resolution and frame rate", async () => {
@@ -32,8 +34,8 @@ test("createOutputPlan swaps dimensions for portrait transport intent", () => {
 
   assert.deepEqual(plan.requestedDimensions, { width: 2560, height: 1440 });
   assert.deepEqual(plan.outputDimensions, { width: 1440, height: 2560 });
-  assert.equal(plan.rotationDegrees, 90);
-  assert.equal(plan.transportTransform, "future-stage-2");
+  assert.equal(plan.rotationDegrees, 0);
+  assert.equal(plan.transportTransform, "identity");
 });
 
 test("exact request retains an unsupported FPS instead of falling back", () => {
@@ -44,4 +46,34 @@ test("exact request retains an unsupported FPS instead of falling back", () => {
   assert.equal(constraints.video.frameRate.exact, 60);
   assert.equal(plan.requestedFPS, 60);
   assert.equal(plan.fallback, false);
+});
+
+test("portrait capture requests the exact dimensions with width and height swapped", () => {
+  const settings = createSettings({
+    orientation: "portrait",
+    resolution: { width: 1920, height: 1080 },
+    frameRate: 60,
+  });
+
+  assert.deepEqual(captureDimensions(settings), { width: 1080, height: 1920 });
+  assert.deepEqual(buildExactVideoConstraints(settings).video, {
+    width: { exact: 1080 },
+    height: { exact: 1920 },
+    frameRate: { exact: 60 },
+  });
+});
+
+test("auto orientation resolves from the current viewport without changing the requested profile", () => {
+  const settings = createSettings({ orientation: "auto" });
+  assert.equal(resolveCaptureOrientation(settings, {
+    screenOrientationType: "portrait-primary",
+    width: 390,
+    height: 844,
+  }), "portrait");
+  assert.deepEqual(captureDimensions(settings, "portrait"), { width: 1080, height: 1920 });
+  assert.deepEqual(buildExactVideoConstraints(settings, null, "portrait").video, {
+    width: { exact: 1080 },
+    height: { exact: 1920 },
+    frameRate: { exact: 60 },
+  });
 });

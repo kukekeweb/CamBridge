@@ -8,7 +8,12 @@ import {
   formatCaptureMismatch,
   TEXT,
 } from "./i18n.js";
-import { buildExactVideoConstraints, createOutputPlan } from "./settings.js";
+import {
+  buildExactVideoConstraints,
+  captureDimensions,
+  createOutputPlan,
+  resolveCaptureOrientation,
+} from "./settings.js";
 
 function errorMessage(error) {
   if (error instanceof Error) {
@@ -17,35 +22,48 @@ function errorMessage(error) {
   return String(error);
 }
 
-function matchesRequested(settings, actual) {
+export function matchesRequestedCapture(settings, actual, captureOrientation = undefined) {
+  const dimensions = captureDimensions(settings, captureOrientation);
   return (
-    actual.width === settings.resolution.width &&
-    actual.height === settings.resolution.height &&
+    actual.width === dimensions.width &&
+    actual.height === dimensions.height &&
     typeof actual.frameRate === "number" &&
     Math.abs(actual.frameRate - settings.frameRate) < 0.5
   );
 }
 
 export class CaptureController {
-  constructor({ mediaDevices, video, meter, onMeterUpdate = () => {} }) {
+  constructor({
+    mediaDevices,
+    video,
+    meter,
+    onMeterUpdate = () => {},
+    orientationProvider = defaultOrientationProvider,
+  }) {
     this.mediaDevices = mediaDevices;
     this.video = video;
     this.meter = meter;
     this.onMeterUpdate = onMeterUpdate;
+    this.orientationProvider = orientationProvider;
     this.stream = null;
     this.track = null;
   }
 
   async start(settings, deviceId = settings.cameraId) {
     this.stop();
+    const captureOrientation = resolveCaptureOrientation(
+      settings,
+      this.orientationProvider?.() ?? {},
+    );
     const requestedSettings = {
       resolution: { ...settings.resolution },
       frameRate: settings.frameRate,
       orientation: settings.orientation,
       quality: settings.quality,
       cameraId: deviceId ?? null,
+      captureOrientation,
     };
-    const constraints = buildExactVideoConstraints(settings, deviceId);
+    const constraints = buildExactVideoConstraints(settings, deviceId, captureOrientation);
     let stream;
     try {
       stream = await this.mediaDevices.getUserMedia(constraints);
@@ -77,7 +95,7 @@ export class CaptureController {
     const actualSettings = snapshotTrackSettings(track);
     const capabilities = snapshotTrackCapabilities(track);
     const actualConstraints = snapshotTrackConstraints(track);
-    if (!matchesRequested(settings, actualSettings)) {
+    if (!matchesRequestedCapture(settings, actualSettings, captureOrientation)) {
       track.stop();
       return {
         ok: false,
@@ -106,7 +124,7 @@ export class CaptureController {
       actualSettings,
       capabilities,
       constraints: actualConstraints,
-      outputPlan: createOutputPlan(settings),
+      outputPlan: createOutputPlan({ ...settings, orientation: captureOrientation }),
       stream,
       track,
       message: TEXT.captureRunning,
@@ -123,4 +141,12 @@ export class CaptureController {
       this.video.srcObject = null;
     }
   }
+}
+
+function defaultOrientationProvider() {
+  return {
+    screenOrientationType: globalThis.screen?.orientation?.type ?? "",
+    width: globalThis.innerWidth ?? 0,
+    height: globalThis.innerHeight ?? 0,
+  };
 }

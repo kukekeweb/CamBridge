@@ -47,7 +47,7 @@ export const TEXT = Object.freeze({
   webrtcConnected: "● WebRTC接続済み",
   webrtcClosed: "● WebRTC切断",
   webrtcFailed: "● WebRTC接続失敗：{message}",
-  webrtcRequiresExactTrack: "1920×1080 / 60fpsの実カメラTrackが必要です",
+  webrtcRequiresExactTrack: "1920×1080または1080×1920 / 60fpsの実カメラTrackが必要です",
   webrtcAlreadyActive: "WebRTC senderはすでに接続処理中です",
   webrtcRequiresSession: "WebRTC signaling session IDが必要です",
   webrtcRequiresHttps: "WebRTC signalingにはHTTPSが必要です",

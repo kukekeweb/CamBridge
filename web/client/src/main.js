@@ -43,6 +43,7 @@ import {
   createOutputPlan,
   createSettings,
   RESOLUTIONS,
+  resolveCaptureOrientation,
 } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -96,7 +97,13 @@ function closeWebRtcSender() {
 
 function renderRequested(settings) {
   $("requested-value").textContent = formatRequestedCapture(settings);
-  const plan = createOutputPlan(settings);
+  const viewport = {
+    screenOrientationType: globalThis.screen?.orientation?.type ?? "",
+    width: globalThis.innerWidth ?? 0,
+    height: globalThis.innerHeight ?? 0,
+  };
+  const orientation = resolveCaptureOrientation(settings, viewport);
+  const plan = createOutputPlan({ ...settings, orientation });
   $("output-plan-value").textContent = formatOutputPlan(plan);
 }
 
@@ -413,6 +420,9 @@ $("start-button").addEventListener("click", async () => {
       ? formatActualCapture(result.actualSettings)
       : TEXT.noValue;
     if (result.ok) {
+      if (result.outputPlan) {
+        $("output-plan-value").textContent = formatOutputPlan(result.outputPlan);
+      }
       $("capture-status").textContent = TEXT.captureRunning;
       $("capture-status").className = "status running";
       $("preview-placeholder").hidden = true;
@@ -648,8 +658,6 @@ $("copy-constraint-csv-button").addEventListener("click", () => copyConstraintPr
 
 $("orientation-select").addEventListener("change", () => {
   const settings = readSettings();
-  const plan = createOutputPlan(settings);
-  video.style.transform = `rotate(${plan.rotationDegrees}deg)`;
   renderRequested(settings);
 });
 
