@@ -11,7 +11,7 @@ present, but live Safari media reception remains open.
 The first network milestone is:
 
 ```text
-iPhone Safari 1080p60
+iPhone Safari 1080p60 (1920x1080 or 1080x1920)
   -> WebRTC H.264
   -> LAN-direct Windows native receiver
   -> H.264 decode
@@ -72,6 +72,13 @@ input. The decoder owns H.264 access-unit to NV12 conversion. The frame publishe
 owns only the latest-frame contract (`width`, `height`, `stride`, timestamp,
 sequence, producer state). The Media Source remains unaware of WebRTC and keeps
 its existing Frame Server process boundary.
+
+Orientation is represented by the dimensions of the active track and frame
+contract. A portrait request is exact 1080x1920; a landscape request is exact
+1920x1080. The native pipeline must preserve the selected layout for a session,
+including decoder metadata, shared-memory header, and Virtual Camera media type.
+It must not rotate a portrait frame into landscape, stretch it, or silently
+reacquire at another layout.
 
 The first implementation may reuse the existing shared-memory publisher contract
 to bridge the receiver process to the already verified Media Source. It must not
@@ -136,8 +143,8 @@ not part of the first MVP acceptance target.
 
 ## Low-latency rules and measurements
 
-- Request 1920x1080@60 from the existing Stage 1 Web Client; do not silently
-  downgrade.
+- Request the selected exact 1080p layout at 60fps from the existing Stage 1 Web
+  Client; do not silently downgrade or change orientation.
 - Prefer `degradationPreference`/content hints only after runtime capability
   detection confirms the property; unsupported APIs are recorded as unavailable.
 - Do not add a jitter buffer or application frame queue beyond WebRTC's own
@@ -181,8 +188,9 @@ path only for comparison. The selected MFT, hardware/software status, input
 format, output format, and decoder errors are logged.
 
 The decoded output must be validated as NV12 with width, height, stride, and
-timestamps before publishing. The existing Media Source consumes the shared
-latest-frame contract; its COM and Frame Server behavior are unchanged.
+timestamps before publishing. Both 1920x1080 and 1080x1920 are valid; the
+existing Media Source consumes the shared latest-frame contract and must select
+the corresponding media type without RGB conversion.
 
 ## Probe and acceptance gates
 
@@ -231,7 +239,7 @@ Implementation status at this revision:
 
 Acceptance for this Stage 2 design's implementation is not claimed until:
 
-- Safari rear camera sends 1920x1080@60;
+- Safari rear camera sends the selected 1920x1080@60 or 1080x1920@60 layout;
 - selected candidate pair is private-LAN direct;
 - actual negotiated codec is shown and is H.264 for the first MVP;
 - native receive/decode sustains 59-60 fps;
