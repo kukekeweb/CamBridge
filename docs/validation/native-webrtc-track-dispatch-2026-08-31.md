@@ -93,3 +93,12 @@ CTest tests, including the native RTP loopback and H.264 pipeline loopback.
 The native receiver still reports RTP, Track, depacketizer, access-unit,
 decoder, and publisher counters so a future Safari run can distinguish
 transport, Track dispatch, depacketization, decoding, and IPC failures.
+
+## Signaling reconnect regression
+
+The native signaling session test now verifies that an explicit signaling
+`close` recycles the receiver and accepts a second Offer on the same signaling
+socket. The browser-side sender test likewise verifies that an unexpected WSS
+close closes the old PeerConnection and leaves the sender reusable. These are
+unit-level lifecycle results; live Safari reconnect and WSS socket reconnect
+remain open acceptance gates.

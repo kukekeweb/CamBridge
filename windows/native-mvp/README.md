@@ -67,8 +67,12 @@ so the native peer is ready for the browser Offer:
 The reserved `auto` value is accepted only for the native role. The broker
 binds it to the first browser session, and resets the binding when that browser
 disconnects. This is a bounded pairing convenience, not a claim that the
-native WebSocket transport already performs automatic reconnect or that live
-Safari interoperability has passed.
+native WebSocket transport itself automatically reconnects after its TCP/TLS
+socket is lost. When the signaling socket remains open and Safari sends a
+close/re-offer sequence, the native session now recycles only its WebRTC
+receiver and accepts the next Offer; this behavior is covered by the native
+signaling-session test. Full live Safari reconnect and WSS socket reconnect
+remain separate runtime acceptance checks.
 
 `--duration-ms` is available for a bounded local run and `--allow-insecure-tls`
 is restricted to an explicit local probe. The independent

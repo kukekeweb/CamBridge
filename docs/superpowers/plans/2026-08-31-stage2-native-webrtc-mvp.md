@@ -40,6 +40,13 @@ which adopts the first browser session ID; explicit IDs remain available for
 deterministic tests. The broker has unit coverage for initial auto pairing and
 reuse after browser disconnect.
 
+The native signaling session now handles an explicit signaling `close` or a
+disconnected WebRTC peer by recycling only the receiver state while preserving
+the open WSS connection. A subsequent Offer can therefore create a fresh
+PeerConnection without restarting the Windows process. This is covered by a
+native unit test. Reconnecting the WSS socket itself after a TCP/TLS failure is
+not yet implemented or claimed.
+
 The first H.264 RTP depacketizer fixture gate is also complete for single-NAL
 and FU-A packets. A local WSS startup run reaches the native waiting state;
 real Safari RTP arrival remains a separate interop gate.
