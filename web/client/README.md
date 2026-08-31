@@ -92,7 +92,10 @@ and refuses to connect when H.264 is not exposed or the active camera Track is
 not exactly 1920×1080 @ 60fps. It does not silently downgrade the camera or
 select another codec.
 
-This is only the first signaling/sender slice. The Windows native receiver,
-H.264 decoder, decoded-frame IPC publisher, and Virtual Camera path are not
-implemented by this probe yet. A displayed **Offer送信済み** state is therefore
-not proof of a completed Windows media receive or negotiated codec.
+This is the browser-side signaling/sender slice. The Windows native receiver,
+H.264 decoder, decoded-frame IPC publisher, and existing Virtual Camera path
+are implemented as separate native components and are exercised by their own
+fixtures and probes. A displayed **Offer送信済み** state still is not proof of
+completed Safari media reception: the live iPhone Safari session must reach the
+native receiver, decode, and Virtual Camera capture gates before the end-to-end
+result can be accepted.
