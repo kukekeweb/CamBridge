@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WebRtcSender, summarizeWebRtcStats } from "../src/webrtc-sender.js";
+import {
+  WebRtcSender,
+  formatWebRtcTrackRequirementError,
+  summarizeWebRtcStats,
+} from "../src/webrtc-sender.js";
 
 class FakeWebSocket {
   static instances = [];
@@ -149,6 +153,26 @@ test("rejects a capture track that is not the exact Stage 2 target", async () =>
     track: { readyState: "live", getSettings: () => ({ width: 1920, height: 1080, frameRate: 30 }) },
   });
   await assert.rejects(sender.connect(), /1920×1080.*60/);
+});
+
+test("describes the current track when WebRTC cannot start", () => {
+  assert.match(
+    formatWebRtcTrackRequirementError({
+      readyState: "live",
+      getSettings: () => ({ width: 1920, height: 1080, frameRate: 60 }),
+    }, null),
+    /現在のTrack: 1920×1080 \/ 60fps, readyState=live, Stream: なし/,
+  );
+});
+
+test("reports the exact-track precondition failure through the status callback", async () => {
+  const statuses = [];
+  const sender = makeSender({
+    track: { readyState: "live", getSettings: () => ({ width: 1920, height: 1080, frameRate: 30 }) },
+    onStatus: (status) => statuses.push(status),
+  });
+  await assert.rejects(sender.connect(), /1920×1080.*60/);
+  assert.match(statuses.at(-1), /^error: .*現在のTrack: 1920×1080 \/ 30fps/);
 });
 
 test("queues ICE candidates emitted before the signaling socket opens", async () => {

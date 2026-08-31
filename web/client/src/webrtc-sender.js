@@ -25,6 +25,24 @@ function exactTarget(track) {
   );
 }
 
+function formatTrackSettings(settings) {
+  return `${settings?.width ?? "?"}×${settings?.height ?? "?"} / ${settings?.frameRate ?? "?"}fps`;
+}
+
+export function formatWebRtcTrackRequirementError(track, stream) {
+  let settings = {};
+  try {
+    settings = track?.getSettings?.() ?? {};
+  } catch {
+    settings = {};
+  }
+  const trackDescription = track
+    ? `${formatTrackSettings(settings)}, readyState=${track.readyState ?? "unknown"}`
+    : "なし";
+  const streamDescription = stream ? "あり" : "なし";
+  return `${TEXT.webrtcRequiresExactTrack}（現在のTrack: ${trackDescription}, Stream: ${streamDescription}）`;
+}
+
 function iterableStats(report) {
   if (report === null || report === undefined) return [];
   const entries = [];
@@ -162,7 +180,9 @@ export class WebRtcSender {
     }
     if (!this.sessionId) throw new Error(TEXT.webrtcRequiresSession);
     if (!exactTarget(this.track)) {
-      throw new Error(TEXT.webrtcRequiresExactTrack);
+      const error = formatWebRtcTrackRequirementError(this.track, this.stream);
+      this.emitStatus(`error: ${error}`);
+      throw new Error(error);
     }
 
     this.lastFailure = null;

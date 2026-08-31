@@ -17,7 +17,7 @@ import {
 } from "./constraint-probe.js";
 import { FrameRateMeter } from "./frame-rate-meter.js";
 import { StabilityTestRunner } from "./stability-test.js";
-import { WebRtcSender } from "./webrtc-sender.js";
+import { WebRtcSender, formatWebRtcTrackRequirementError } from "./webrtc-sender.js";
 import {
   describeError,
   formatActualCapture,
@@ -445,7 +445,7 @@ $("stop-button").addEventListener("click", () => {
 
 $("connect-webrtc-button").addEventListener("click", async () => {
   if (!controller.track || !controller.stream) {
-    const error = new Error(TEXT.webrtcRequiresExactTrack);
+    const error = new Error(formatWebRtcTrackRequirementError(controller.track, controller.stream));
     renderWebRtcStatus("error: " + error.message);
     recordError(error);
     return;
@@ -474,6 +474,7 @@ $("connect-webrtc-button").addEventListener("click", async () => {
   } catch (error) {
     $("connect-webrtc-button").disabled = false;
     $("disconnect-webrtc-button").disabled = true;
+    renderWebRtcStatus("error: " + (error instanceof Error ? error.message : describeError(error)));
     recordError(error);
   }
 });
