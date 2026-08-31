@@ -196,6 +196,24 @@ test("cleans up an unexpected signaling close so the sender can reconnect", asyn
   sender.close();
 });
 
+test("keeps the signaling failure visible when the WebSocket closes afterward", async () => {
+  const statuses = [];
+  const sender = makeSender({ onStatus: (status) => statuses.push(status) });
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  await connectPromise;
+
+  socket.receive({ version: 1, type: "error", sessionId: "s1", code: "peer_not_connected" });
+  await new Promise((resolve) => setImmediate(resolve));
+  socket.readyState = 3;
+  socket.onclose?.({ code: 1006, reason: "abnormal closure" });
+
+  assert.match(statuses.at(-1), /^error: /);
+  assert.match(statuses.at(-1), /signalingでエラーが通知されました/);
+  assert.match(statuses.at(-1), /code=1006/);
+});
+
 test("summarizes outbound video stats and the negotiated codec", () => {
   const report = new Map([
     ["outbound-1", {

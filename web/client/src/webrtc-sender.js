@@ -139,6 +139,7 @@ export class WebRtcSender {
     this.pendingIceCandidates = [];
     this.statsTimer = null;
     this.previousStats = null;
+    this.lastFailure = null;
     this.state = "idle";
   }
 
@@ -162,6 +163,8 @@ export class WebRtcSender {
     if (!exactTarget(this.track)) {
       throw new Error(TEXT.webrtcRequiresExactTrack);
     }
+
+    this.lastFailure = null;
 
     const codecs = runtimeH264Codecs(this.senderCapabilities);
     if (codecs.length === 0) {
@@ -268,10 +271,16 @@ export class WebRtcSender {
           this.fail(error);
           rejectOnce(error);
         };
-        activeSocket.onclose = () => {
+        activeSocket.onclose = (event) => {
           if (this.websocket !== activeSocket) return;
+          const failure = this.lastFailure;
           this.resetTransport({ closeWebSocket: false });
-          if (this.state !== "closed") this.emitStatus("closed");
+          if (failure) {
+            const closeDetails = event?.code ? `（WebSocket close code=${event.code}${event.reason ? `: ${event.reason}` : ""}）` : "";
+            this.emitStatus(`error: ${failure}${closeDetails}`);
+          } else if (this.state !== "closed") {
+            this.emitStatus("closed");
+          }
         };
       });
     } catch (error) {
@@ -313,7 +322,8 @@ export class WebRtcSender {
   }
 
   fail(error) {
-    this.onStatus(`error: ${errorMessage(error)}`);
+    this.lastFailure = errorMessage(error);
+    this.onStatus(`error: ${this.lastFailure}`);
   }
 
   resetTransport({ closeWebSocket = true } = {}) {
@@ -335,6 +345,7 @@ export class WebRtcSender {
   }
 
   close() {
+    this.lastFailure = null;
     this.resetTransport();
     this.emitStatus("closed");
   }
