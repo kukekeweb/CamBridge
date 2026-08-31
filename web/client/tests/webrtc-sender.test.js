@@ -186,7 +186,8 @@ test("cleans up an unexpected signaling close so the sender can reconnect", asyn
   assert.equal(firstPeer.connectionState, "closed");
   assert.equal(sender.peerConnection, null);
   assert.equal(sender.websocket, null);
-  assert.ok(statuses.includes("closed"));
+  assert.match(statuses.at(-1), /^closed: /);
+  assert.match(statuses.at(-1), /step=answer-received/);
 
   const secondConnect = sender.connect();
   const secondSocket = FakeWebSocket.instances[1];
@@ -212,6 +213,22 @@ test("keeps the signaling failure visible when the WebSocket closes afterward", 
   assert.match(statuses.at(-1), /^error: /);
   assert.match(statuses.at(-1), /signalingでエラーが通知されました/);
   assert.match(statuses.at(-1), /code=1006/);
+});
+
+test("reports an abnormal WebSocket close even without a prior signaling error", async () => {
+  const statuses = [];
+  const sender = makeSender({ onStatus: (status) => statuses.push(status) });
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  await connectPromise;
+
+  socket.readyState = 3;
+  socket.onclose?.({ code: 1006, reason: "connection reset", wasClean: false });
+
+  assert.match(statuses.at(-1), /^closed: /);
+  assert.match(statuses.at(-1), /WebSocket close code=1006/);
+  assert.match(statuses.at(-1), /connection reset/);
 });
 
 test("summarizes outbound video stats and the negotiated codec", () => {

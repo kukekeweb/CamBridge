@@ -234,6 +234,9 @@ export function formatWebRtcStatus(status) {
   if (status === "offered") return TEXT.webrtcOffered;
   if (status === "connected") return TEXT.webrtcConnected;
   if (status === "closed" || status === "disconnected") return TEXT.webrtcClosed;
+  if (typeof status === "string" && status.startsWith("closed: ")) {
+    return `${TEXT.webrtcClosed}（${status.slice("closed: ".length)}）`;
+  }
   if (typeof status === "string" && status.startsWith("error: ")) {
     return TEXT.webrtcFailed.replace("{message}", status.slice("error: ".length));
   }

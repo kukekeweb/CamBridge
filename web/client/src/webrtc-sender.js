@@ -140,6 +140,7 @@ export class WebRtcSender {
     this.statsTimer = null;
     this.previousStats = null;
     this.lastFailure = null;
+    this.lastSignalingStep = "idle";
     this.state = "idle";
   }
 
@@ -165,6 +166,7 @@ export class WebRtcSender {
     }
 
     this.lastFailure = null;
+    this.lastSignalingStep = "peer-created";
 
     const codecs = runtimeH264Codecs(this.senderCapabilities);
     if (codecs.length === 0) {
@@ -224,7 +226,9 @@ export class WebRtcSender {
         };
         activeSocket.onopen = async () => {
           try {
+            this.lastSignalingStep = "socket-open";
             this.send({ type: "hello", role: "browser", sessionId: this.sessionId });
+            this.lastSignalingStep = "hello-sent";
             const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
             this.send({
@@ -232,6 +236,7 @@ export class WebRtcSender {
               sessionId: this.sessionId,
               sdp: this.peerConnection.localDescription?.sdp ?? offer.sdp,
             });
+            this.lastSignalingStep = "offer-sent";
             const pendingIce = this.pendingIceCandidates.splice(0);
             for (const candidate of pendingIce) this.send(candidate);
             this.emitStatus("offered");
@@ -247,6 +252,7 @@ export class WebRtcSender {
             if (message.sessionId !== this.sessionId) throw new Error(TEXT.webrtcSessionMismatch);
             if (message.type === "answer") {
               await this.peerConnection.setRemoteDescription({ type: "answer", sdp: message.sdp });
+              this.lastSignalingStep = "answer-received";
               this.startStatsPolling();
               return;
             }
@@ -276,10 +282,12 @@ export class WebRtcSender {
           const failure = this.lastFailure;
           this.resetTransport({ closeWebSocket: false });
           if (failure) {
-            const closeDetails = event?.code ? `（WebSocket close code=${event.code}${event.reason ? `: ${event.reason}` : ""}）` : "";
+            const closeDetails = `（step=${this.lastSignalingStep}${event?.code ? `, WebSocket close code=${event.code}${event.reason ? `: ${event.reason}` : ""}` : ""}）`;
             this.emitStatus(`error: ${failure}${closeDetails}`);
-          } else if (this.state !== "closed") {
-            this.emitStatus("closed");
+          } else {
+            const closeDetails = `step=${this.lastSignalingStep}${event?.code ? `, WebSocket close code=${event.code}${event.reason ? `: ${event.reason}` : ""}` : ""}`;
+            this.state = "closed";
+            this.onStatus(`closed: ${closeDetails}`);
           }
         };
       });
@@ -346,6 +354,7 @@ export class WebRtcSender {
 
   close() {
     this.lastFailure = null;
+    this.lastSignalingStep = "closed-by-user";
     this.resetTransport();
     this.emitStatus("closed");
   }

@@ -8,6 +8,7 @@ import {
   formatOutputPlan,
   formatRequestedCapture,
   formatWebRtcStats,
+  formatWebRtcStatus,
 } from "../src/i18n.js";
 
 test("user-facing capture request is Japanese while retaining exact values", () => {
@@ -70,4 +71,11 @@ test("WebRTC stats formatting exposes measured sender values", () => {
   assert.match(text, /実際のcodec: video\/H264/);
   assert.match(text, /bitrate .*4\.00 Mbps/);
   assert.match(text, /packet loss .*0\.17 %/);
+});
+
+test("WebRTC close status exposes the last signaling step", () => {
+  assert.equal(
+    formatWebRtcStatus("closed: step=offer-sent, WebSocket close code=1000"),
+    "● WebRTC切断（step=offer-sent, WebSocket close code=1000）",
+  );
 });
