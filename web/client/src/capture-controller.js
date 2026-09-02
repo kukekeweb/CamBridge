@@ -25,10 +25,8 @@ function errorMessage(error) {
 export function matchesRequestedCapture(settings, actual, captureOrientation = undefined) {
   const dimensions = captureDimensions(settings, captureOrientation);
   const directDimensions = actual.width === dimensions.width && actual.height === dimensions.height;
-  const autoOrientation = settings?.orientation === "auto";
-  const swappedDimensions = actual.width === dimensions.height && actual.height === dimensions.width;
   return (
-    (directDimensions || (autoOrientation && swappedDimensions)) &&
+    directDimensions &&
     typeof actual.frameRate === "number" &&
     Math.abs(actual.frameRate - settings.frameRate) < 0.5
   );
@@ -53,10 +51,7 @@ export class CaptureController {
 
   async start(settings, deviceId = settings.cameraId) {
     this.stop();
-    const captureOrientation = resolveCaptureOrientation(
-      settings,
-      this.orientationProvider?.() ?? {},
-    );
+    const captureOrientation = resolveCaptureOrientation(settings);
     const requestedSettings = {
       resolution: { ...settings.resolution },
       frameRate: settings.frameRate,
@@ -65,14 +60,7 @@ export class CaptureController {
       cameraId: deviceId ?? null,
       captureOrientation,
     };
-    // Safari devices can expose a portrait track even when the proven 60fps
-    // request is expressed as landscape dimensions. In auto mode, keep the
-    // exact, validated 60fps capture request and derive orientation from the
-    // returned track instead of forcing a portrait dimension request.
-    const constraintOrientation = settings.orientation === "auto"
-      ? "landscape"
-      : captureOrientation;
-    const constraints = buildExactVideoConstraints(settings, deviceId, constraintOrientation);
+    const constraints = buildExactVideoConstraints(settings, deviceId, captureOrientation);
     let stream;
     try {
       stream = await this.mediaDevices.getUserMedia(constraints);
@@ -118,10 +106,7 @@ export class CaptureController {
       };
     }
 
-    const effectiveOrientation = settings.orientation === "auto"
-      ? resolveCaptureOrientation({ orientation: "auto" }, actualSettings)
-      : captureOrientation;
-    requestedSettings.captureOrientation = effectiveOrientation;
+    requestedSettings.captureOrientation = captureOrientation;
 
     this.stream = stream;
     this.track = track;
@@ -138,7 +123,7 @@ export class CaptureController {
       actualSettings,
       capabilities,
       constraints: actualConstraints,
-      outputPlan: createOutputPlan({ ...settings, orientation: effectiveOrientation }),
+      outputPlan: createOutputPlan({ ...settings, orientation: captureOrientation }),
       stream,
       track,
       message: TEXT.captureRunning,

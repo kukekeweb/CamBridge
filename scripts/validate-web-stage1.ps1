@@ -65,8 +65,8 @@ Assert-Contains "web/client/src/i18n.js" "ERROR_DESCRIPTIONS" "Centralized Japan
 Assert-Contains "web/client/src/i18n.js" "formatDiagnosticResult" "Centralized diagnostic labels missing"
 Assert-Contains "web/client/src/i18n.js" "formatConstraintProbeResult" "Constraint probe labels missing"
 
-Assert-Contains "web/client/src/settings.js" "width: { exact: settings.resolution.width }" "Resolution must use exact constraints"
-Assert-Contains "web/client/src/settings.js" "height: { exact: settings.resolution.height }" "Resolution must use exact constraints"
+Assert-Contains "web/client/src/settings.js" "width: { exact: dimensions.width }" "Resolution must use exact constraints"
+Assert-Contains "web/client/src/settings.js" "height: { exact: dimensions.height }" "Resolution must use exact constraints"
 Assert-Contains "web/client/src/settings.js" "frameRate: { exact: settings.frameRate }" "Frame rate must use exact constraints"
 Assert-Contains "web/client/index.html" 'value="60"' "60 FPS must be a Stage 1 selectable request"
 Assert-Contains "web/client/src/capability-probe.js" "getCapabilities" "Track capabilities probe missing"

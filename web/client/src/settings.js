@@ -5,12 +5,12 @@ export const RESOLUTIONS = Object.freeze([
 ]);
 
 export const FRAME_RATES = Object.freeze([30, 60]);
-export const ORIENTATIONS = Object.freeze(["auto", "portrait", "landscape"]);
+export const ORIENTATIONS = Object.freeze(["landscape", "portrait"]);
 export const QUALITY_PRESETS = Object.freeze(["low", "medium", "high"]);
 
 const DEFAULT_SETTINGS = Object.freeze({
   cameraId: null,
-  orientation: "auto",
+  orientation: "landscape",
   resolution: RESOLUTIONS[0],
   frameRate: 60,
   quality: "high",
@@ -29,6 +29,7 @@ export function createSettings(overrides = {}) {
   return {
     ...DEFAULT_SETTINGS,
     ...overrides,
+    orientation: overrides.orientation === "portrait" ? "portrait" : "landscape",
     resolution: copyResolution(resolution),
   };
 }
@@ -37,18 +38,11 @@ export function resolveCaptureOrientation(settings, viewport = {}) {
   if (settings?.orientation === "portrait" || settings?.orientation === "landscape") {
     return settings.orientation;
   }
-
-  const screenOrientationType = String(viewport.screenOrientationType ?? "").toLowerCase();
-  if (screenOrientationType.includes("portrait")) {
-    return "portrait";
-  }
-  if (screenOrientationType.includes("landscape")) {
-    return "landscape";
-  }
-
-  const width = Number(viewport.width);
-  const height = Number(viewport.height);
-  return width > 0 && height > width ? "portrait" : "landscape";
+  // Orientation is an explicit user setting. Keep the optional viewport
+  // parameter for callers from older builds, but never infer orientation from
+  // device rotation or viewport dimensions.
+  void viewport;
+  return "landscape";
 }
 
 export function captureDimensions(settings, orientationOverride = undefined) {

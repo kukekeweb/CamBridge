@@ -96,7 +96,7 @@ test("portrait capture accepts an exact 1080x1920 track at 60fps", () => {
   assert.equal(matchesRequestedCapture(settings, { width: 1920, height: 1080, frameRate: 60 }), false);
 });
 
-test("auto orientation keeps the proven landscape request and accepts a portrait track", async () => {
+test("explicit orientation ignores the viewport and rejects an opposite layout", async () => {
   const track = fakeTrack({ width: 1080, height: 1920, frameRate: 60 });
   const stream = { getVideoTracks: () => [track] };
   const video = { srcObject: null, async play() {} };
@@ -113,32 +113,9 @@ test("auto orientation keeps the proven landscape request and accepts a portrait
     orientationProvider: () => ({ screenOrientationType: "portrait-primary", width: 390, height: 844 }),
   });
 
-  const result = await controller.start(createSettings({ orientation: "auto" }), "back");
+  const result = await controller.start(createSettings({ orientation: "landscape" }), "back");
 
-  assert.equal(result.ok, true);
-  assert.equal(result.requestedSettings.captureOrientation, "portrait");
-});
-
-test("auto orientation accepts Safari's opposite exact layout and records the actual orientation", async () => {
-  const track = fakeTrack({ width: 1080, height: 1920, frameRate: 60 });
-  const stream = { getVideoTracks: () => [track] };
-  const video = { srcObject: null, async play() {} };
-  const controller = new CaptureController({
-    mediaDevices: {
-      async getUserMedia(constraints) {
-        assert.deepEqual(constraints.video.width, { exact: 1920 });
-        assert.deepEqual(constraints.video.height, { exact: 1080 });
-        return stream;
-      },
-    },
-    video,
-    meter: { start() {}, stop() {} },
-    orientationProvider: () => ({ screenOrientationType: "landscape-primary", width: 844, height: 390 }),
-  });
-
-  const result = await controller.start(createSettings({ orientation: "auto" }), "back");
-
-  assert.equal(result.ok, true);
-  assert.equal(result.requestedSettings.captureOrientation, "portrait");
-  assert.equal(result.outputPlan.orientation, "portrait");
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "mismatch");
+  assert.equal(track.stopped, true);
 });

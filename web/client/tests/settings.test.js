@@ -63,17 +63,19 @@ test("portrait capture requests the exact dimensions with width and height swapp
   });
 });
 
-test("auto orientation resolves from the current viewport without changing the requested profile", () => {
-  const settings = createSettings({ orientation: "auto" });
+test("orientation is explicit and does not follow the viewport", () => {
+  const settings = createSettings();
+  assert.equal(settings.orientation, "landscape");
+  assert.equal(createSettings({ orientation: "auto" }).orientation, "landscape");
   assert.equal(resolveCaptureOrientation(settings, {
     screenOrientationType: "portrait-primary",
     width: 390,
     height: 844,
-  }), "portrait");
-  assert.deepEqual(captureDimensions(settings, "portrait"), { width: 1080, height: 1920 });
-  assert.deepEqual(buildExactVideoConstraints(settings, null, "portrait").video, {
-    width: { exact: 1080 },
-    height: { exact: 1920 },
+  }), "landscape");
+  assert.deepEqual(captureDimensions(settings), { width: 1920, height: 1080 });
+  assert.deepEqual(buildExactVideoConstraints(settings).video, {
+    width: { exact: 1920 },
+    height: { exact: 1080 },
     frameRate: { exact: 60 },
   });
 });

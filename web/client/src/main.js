@@ -43,7 +43,6 @@ import {
   createOutputPlan,
   createSettings,
   RESOLUTIONS,
-  resolveCaptureOrientation,
 } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -97,13 +96,7 @@ function closeWebRtcSender() {
 
 function renderRequested(settings) {
   $("requested-value").textContent = formatRequestedCapture(settings);
-  const viewport = {
-    screenOrientationType: globalThis.screen?.orientation?.type ?? "",
-    width: globalThis.innerWidth ?? 0,
-    height: globalThis.innerHeight ?? 0,
-  };
-  const orientation = resolveCaptureOrientation(settings, viewport);
-  const plan = createOutputPlan({ ...settings, orientation });
+  const plan = createOutputPlan(settings);
   $("output-plan-value").textContent = formatOutputPlan(plan);
 }
 
