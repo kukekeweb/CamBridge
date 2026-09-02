@@ -146,7 +146,14 @@ The Media Source writes control-path diagnostics to
 PID-scoped so the CamBridge process and Windows Frame Server process can be separated.
 They include DLL/class factory, QueryInterface IID/HRESULT, activation, initialization,
 descriptor, allocator, Start/Stop/Shutdown events, IPC state, stream-announcement,
-RequestSample, and the first three sample summaries. They do not log every video frame.
+RequestSample, and bounded pacing diagnostics. `PacingSummary` is emitted at most once
+per second and reports RequestSample, allocator, sample creation, MEMediaSample queue and
+EndGetEvent rates, IPC read/new-sequence/duplicate counts, latest sequence, and estimated
+Media Foundation event backlog. `PacingSample` records the first ten samples and then one
+representative sample per second, including sample timestamp versus wall-clock progress,
+duration, negotiated and IPC dimensions, buffer capacity, current length, and copied bytes.
+MEMediaSample EndGetEvent logging is limited to the first ten events so the control log does
+not grow at frame rate. These diagnostics do not change sample pacing or frame generation.
 
 The production frame IPC uses a file-backed mapping at
 `C:\ProgramData\CamBridge\ipc\CamBridge.NativeMvp.Nv12.bin`. This is intentional:

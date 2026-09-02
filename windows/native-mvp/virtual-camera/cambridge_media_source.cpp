@@ -24,6 +24,10 @@ constexpr std::uint32_t kFrameDuration100ns30 = 333333;
 constexpr std::uint32_t kDefaultWidth = 1920;
 constexpr std::uint32_t kDefaultHeight = 1080;
 constexpr std::uint32_t kDefaultStride = 1920;
+// Diagnostic-only IMFSample attribute used to correlate EndGetEvent with the
+// source IPC frame without changing the Media Foundation media type contract.
+inline constexpr GUID kCamBridgeSampleIpcSequenceAttribute =
+    {0xa5c19e37, 0x4a6a, 0x4a82, {0x9a, 0x51, 0x7e, 0x1b, 0x5f, 0x6e, 0x8c, 0x21}};
 
 HRESULT MakeVideoType(std::uint32_t width, std::uint32_t height, std::uint32_t fps,
                       IMFMediaType** result) {
@@ -142,6 +146,16 @@ void LogObservedEvent(const wchar_t* component, const wchar_t* operation,
     if (SUCCEEDED(valueHr) && value.vt == VT_UNKNOWN && value.punkVal != nullptr) {
       associatedObject = true;
       associatedPointer = value.punkVal;
+      if (eventType == MEMediaSample) {
+        Microsoft::WRL::ComPtr<IMFSample> sample;
+        if (SUCCEEDED(value.punkVal->QueryInterface(IID_PPV_ARGS(&sample)))) {
+          UINT64 sampleSequence = 0;
+          if (SUCCEEDED(sample->GetUINT64(kCamBridgeSampleIpcSequenceAttribute,
+                                          &sampleSequence))) {
+            sequence = sampleSequence;
+          }
+        }
+      }
     }
   }
   LogMediaEvent(component, operation, static_cast<DWORD>(eventType), callHr, status,
@@ -253,6 +267,69 @@ void CamBridgeMediaStream::LogAllocatorState(const wchar_t* eventName, HRESULT h
                     sampleAllocator_.Get(), type, subtype, width, height, fps, denominator);
 }
 
+void CamBridgeMediaStream::ResetPacingDiagnosticsLocked() {
+  const auto now = std::chrono::steady_clock::now();
+  streamStartSteady_ = now;
+  pacingWindowStart_ = now;
+  lastPacingSampleLogSteady_ = now;
+  streamStartSystemTime100ns_ = nextTimestamp100ns_;
+  hasLastSampleTimestamp_ = false;
+  pacingRequestSamples_ = 0;
+  pacingAllocateSampleCalls_ = 0;
+  pacingSamplesCreated_ = 0;
+  pacingMediaSampleQueued_ = 0;
+  pacingMediaSampleEndGetEvent_ = 0;
+  pacingBeginGetEvent_ = 0;
+  pacingIpcReadAttempts_ = 0;
+  pacingIpcNewFrames_ = 0;
+  pacingUniqueIpcSequences_ = 0;
+  pacingDuplicateIpcSequenceSamples_ = 0;
+  pacingLatestIpcSequence_ = 0;
+  pacingWindowLastIpcSequence_ = 0;
+  pacingMediaSampleQueuedTotal_ = 0;
+  pacingMediaSampleEndGetEventTotal_ = 0;
+  lastIpcWidth_ = 0;
+  lastIpcHeight_ = 0;
+  lastIpcStride_ = 0;
+  lastIpcPayloadBytes_ = 0;
+  lastCopiedBytes_ = 0;
+}
+
+void CamBridgeMediaStream::MaybeLogPacingSummaryLocked(const wchar_t* eventName,
+                                                       HRESULT hr, bool force) {
+  if (pacingWindowStart_.time_since_epoch().count() == 0) return;
+  const auto now = std::chrono::steady_clock::now();
+  const auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      now - pacingWindowStart_);
+  const auto elapsed100ns = static_cast<std::uint64_t>(std::max<std::int64_t>(
+      0, elapsed.count() / 100));
+  if (!force && elapsed100ns < 10000000ULL) return;
+  const auto pending = pacingMediaSampleQueuedTotal_ >= pacingMediaSampleEndGetEventTotal_
+      ? pacingMediaSampleQueuedTotal_ - pacingMediaSampleEndGetEventTotal_
+      : 0;
+  LogPacingSummary(L"CamBridgeMediaStream", eventName, hr, elapsed100ns,
+                   pacingRequestSamples_, pacingAllocateSampleCalls_,
+                   pacingSamplesCreated_, pacingMediaSampleQueued_,
+                   pacingMediaSampleEndGetEvent_, pacingBeginGetEvent_,
+                   pacingIpcReadAttempts_, pacingIpcNewFrames_,
+                   pacingUniqueIpcSequences_, pacingDuplicateIpcSequenceSamples_,
+                   pacingLatestIpcSequence_, pending, requestSampleCount_,
+                   samplesProduced_, samplesDelivered_);
+  pacingWindowStart_ = now;
+  pacingRequestSamples_ = 0;
+  pacingAllocateSampleCalls_ = 0;
+  pacingSamplesCreated_ = 0;
+  pacingMediaSampleQueued_ = 0;
+  pacingMediaSampleEndGetEvent_ = 0;
+  pacingBeginGetEvent_ = 0;
+  pacingIpcReadAttempts_ = 0;
+  pacingIpcNewFrames_ = 0;
+  pacingUniqueIpcSequences_ = 0;
+  pacingDuplicateIpcSequenceSamples_ = 0;
+  pacingWindowLastIpcSequence_ = 0;
+  lastPacingSampleLogSteady_ = now;
+}
+
 HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   LogControlEvent(L"CamBridgeMediaStream", L"Start.begin", S_OK);
   if (mediaType == nullptr) return E_INVALIDARG;
@@ -269,6 +346,7 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   width_ = width;
   height_ = height;
   stride_ = width;
+  MaybeLogPacingSummaryLocked(L"Start.previous-pacing-summary", S_OK, true);
   lastFrame_ = {};
   lastSequence_ = 0;
   LogAllocatorState(L"Start.allocator.before", S_OK, mediaType_.Get());
@@ -285,6 +363,7 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   // domain. IPC timestamps are producer-relative and must not be forwarded as
   // presentation timestamps (the first synthetic sample would otherwise be 0).
   nextTimestamp100ns_ = MFGetSystemTime();
+  ResetPacingDiagnosticsLocked();
   state_ = MF_STREAM_STATE_RUNNING;
   hr = events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);
   LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEStreamStarted, hr, S_OK,
@@ -299,6 +378,7 @@ HRESULT CamBridgeMediaStream::Stop(bool sendEvent) {
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   state_ = MF_STREAM_STATE_STOPPED;
+  MaybeLogPacingSummaryLocked(L"Stop.pacing-summary", S_OK, true);
   if (sendEvent) {
     hr = events_->QueueEventParamVar(MEStreamStopped, GUID_NULL, S_OK, nullptr);
     LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEStreamStopped, hr, S_OK,
@@ -312,6 +392,7 @@ HRESULT CamBridgeMediaStream::Shutdown() {
   LogControlEvent(L"CamBridgeMediaStream", L"Shutdown.begin", S_OK);
   std::lock_guard lock(mutex_);
   if (shutdown_) return S_OK;
+  MaybeLogPacingSummaryLocked(L"Shutdown.pacing-summary", S_OK, true);
   LogStreamSummary(L"CamBridgeMediaStream", L"Shutdown.summary", S_OK,
                    requestSampleCount_, samplesProduced_, samplesDelivered_, lastSequence_);
   LogRequestSampleSummary(L"CamBridgeMediaStream", L"Shutdown.request-summary", S_OK,
@@ -351,8 +432,11 @@ HRESULT CamBridgeMediaStream::BeginGetEvent(IMFAsyncCallback* callback, IUnknown
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   hr = events_->BeginGetEvent(callback, state);
-  LogMediaEvent(L"CamBridgeMediaStream", L"BeginGetEvent", MEUnknown, hr, S_OK,
-                GUID_NULL, false, nullptr, 0, 0, S_OK);
+  ++pacingBeginGetEvent_;
+  if (pacingBeginGetEvent_ <= 10) {
+    LogMediaEvent(L"CamBridgeMediaStream", L"BeginGetEvent", MEUnknown, hr, S_OK,
+                  GUID_NULL, false, nullptr, 0, 0, S_OK);
+  }
   return hr;
 }
 
@@ -362,8 +446,20 @@ HRESULT CamBridgeMediaStream::EndGetEvent(IMFAsyncResult* result, IMFMediaEvent*
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
   hr = events_->EndGetEvent(result, event);
-  LogObservedEvent(L"CamBridgeMediaStream", L"EndGetEvent",
-                   SUCCEEDED(hr) && event != nullptr ? *event : nullptr, hr);
+  MediaEventType eventType = MEUnknown;
+  if (SUCCEEDED(hr) && event != nullptr && *event != nullptr) {
+    (void)(*event)->GetType(&eventType);
+  }
+  if (eventType == MEMediaSample) {
+    ++pacingMediaSampleEndGetEvent_;
+    ++pacingMediaSampleEndGetEventTotal_;
+    if (pacingMediaSampleEndGetEvent_ <= 10) {
+      LogObservedEvent(L"CamBridgeMediaStream", L"EndGetEvent", *event, hr);
+    }
+  } else {
+    LogObservedEvent(L"CamBridgeMediaStream", L"EndGetEvent", *event, hr);
+  }
+  MaybeLogPacingSummaryLocked(L"PacingSummary", hr, false);
   return hr;
 }
 
@@ -419,6 +515,7 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   Microsoft::WRL::ComPtr<IMFSample> result;
   HRESULT hr = S_OK;
   const bool logSampleDetails = requestSampleCount_ <= 3;
+  ++pacingAllocateSampleCalls_;
   if (sampleAllocator_) {
     hr = sampleAllocator_->AllocateSample(&result);
     if (logSampleDetails) LogAllocatorState(L"AllocateSample", hr, mediaType_.Get());
@@ -446,9 +543,25 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Lock", hr, mediaType_.Get());
   FillBlack(data, maxLength, stride_, height_);
   Nv12Frame frame;
-  const bool readLatest = reader_.IsOpen() && reader_.ReadLatest(frame);
+  SharedFrameStatus ipcBefore;
   SharedFrameStatus ipcStatus;
-  (void)reader_.GetStatus(&ipcStatus);
+  const bool readerOpen = reader_.IsOpen();
+  if (readerOpen) {
+    ++pacingIpcReadAttempts_;
+    (void)reader_.GetStatus(&ipcBefore);
+  }
+  const bool readLatest = readerOpen && reader_.ReadLatest(frame);
+  if (readerOpen) (void)reader_.GetStatus(&ipcStatus);
+  pacingLatestIpcSequence_ = ipcStatus.publishedSequence;
+  lastIpcWidth_ = ipcStatus.width;
+  lastIpcHeight_ = ipcStatus.height;
+  lastIpcStride_ = ipcStatus.stride;
+  lastIpcPayloadBytes_ = ipcStatus.frameBytes;
+  if (!readLatest && readerOpen && ipcStatus.publishedSequence != 0 &&
+      ipcStatus.publishedSequence == ipcStatus.lastReadSequence &&
+      ipcBefore.publishedSequence == ipcBefore.lastReadSequence) {
+    ++pacingDuplicateIpcSequenceSamples_;
+  }
   const auto sampleIndex = samplesProduced_ + 1;
   if (sampleIndex <= 3) {
     LogIpcStatus(L"CamBridgeMediaStream", L"CreateSample.ipc", readLatest ? S_OK : S_FALSE,
@@ -456,6 +569,11 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
                  ipcStatus.publishedSequence, ipcStatus.lastReadSequence);
   }
   if (readLatest) {
+    ++pacingIpcNewFrames_;
+    if (frame.sequence != pacingWindowLastIpcSequence_) {
+      ++pacingUniqueIpcSequences_;
+      pacingWindowLastIpcSequence_ = frame.sequence;
+    }
     Nv12Frame converted;
     if (ConvertNv12FrameToLayout(frame, width_, height_, stride_, &converted)) {
       lastFrame_ = std::move(converted);
@@ -470,6 +588,9 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
   if (lastFrame_.width == width_ && lastFrame_.height == height_ &&
       lastFrame_.stride == stride_ && lastFrame_.bytes.size() == bytes) {
     std::memcpy(data, lastFrame_.bytes.data(), bytes);
+    lastCopiedBytes_ = static_cast<std::uint32_t>(bytes);
+  } else {
+    lastCopiedBytes_ = 0;
   }
   hr = buffer->Unlock();
   if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Unlock", hr, mediaType_.Get());
@@ -480,23 +601,53 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
     MFGetAttributeRatio(mediaType_.Get(), MF_MT_FRAME_RATE, &fps, &den);
     return den == 0 || fps == 0 ? kFrameDuration100ns60 : static_cast<LONGLONG>(10000000LL * den / fps);
   }() : static_cast<LONGLONG>(kFrameDuration100ns60);
-  if (FAILED(hr = result->SetSampleTime(nextTimestamp100ns_))) return hr;
+  const LONGLONG sampleTimestamp100ns = nextTimestamp100ns_;
+  const LONGLONG previousSampleTimestamp100ns =
+      hasLastSampleTimestamp_ ? lastSampleTimestamp100ns_ : 0;
+  const LONGLONG sampleDelta100ns =
+      hasLastSampleTimestamp_ ? sampleTimestamp100ns - previousSampleTimestamp100ns : 0;
+  if (FAILED(hr = result->SetSampleTime(sampleTimestamp100ns))) return hr;
   if (FAILED(hr = result->SetSampleDuration(fpsDuration))) return hr;
-  lastSampleTimestamp100ns_ = nextTimestamp100ns_;
+  (void)result->SetUINT64(kCamBridgeSampleIpcSequenceAttribute,
+                          readLatest ? frame.sequence : lastSequence_);
+  lastSampleTimestamp100ns_ = sampleTimestamp100ns;
+  hasLastSampleTimestamp_ = true;
   lastSampleDuration100ns_ = fpsDuration;
   nextTimestamp100ns_ += fpsDuration;
   ++samplesProduced_;
+  ++pacingSamplesCreated_;
+  const auto now = std::chrono::steady_clock::now();
+  const auto wallClockElapsed100ns = streamStartSteady_.time_since_epoch().count() == 0
+      ? 0ULL
+      : static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now - streamStartSteady_).count() / 100);
+  const LONGLONG sampleRelative100ns = sampleTimestamp100ns - streamStartSystemTime100ns_;
+  const LONGLONG sampleMinusWallClock100ns =
+      sampleRelative100ns - static_cast<LONGLONG>(wallClockElapsed100ns);
+  if (samplesProduced_ <= 10 ||
+      now - lastPacingSampleLogSteady_ >= std::chrono::seconds(1)) {
+    LogPacingSample(L"CamBridgeMediaStream", L"PacingSample", S_OK, result.Get(),
+                    samplesProduced_, readLatest ? frame.sequence : lastSequence_,
+                    sampleTimestamp100ns, previousSampleTimestamp100ns,
+                    sampleDelta100ns, fpsDuration, wallClockElapsed100ns,
+                    sampleRelative100ns, sampleMinusWallClock100ns, width_, height_,
+                    maxLength, static_cast<DWORD>(bytes), lastIpcWidth_, lastIpcHeight_,
+                    lastIpcStride_, lastIpcPayloadBytes_, lastCopiedBytes_);
+    lastPacingSampleLogSteady_ = now;
+  }
   if (sampleIndex <= 3) {
     LogSampleEvent(L"CamBridgeMediaStream", L"SampleCreated", S_OK, sampleIndex,
                    lastSequence_, nextTimestamp100ns_ - fpsDuration,
                    static_cast<DWORD>(bytes));
   }
+  MaybeLogPacingSummaryLocked(L"PacingSummary", S_OK, false);
   return result.CopyTo(sample);
 }
 
 HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
   std::lock_guard lock(mutex_);
   const auto requestIndex = ++requestSampleCount_;
+  ++pacingRequestSamples_;
   if (requestIndex == 1) {
     FILETIME firstRequest{};
     GetSystemTimeAsFileTime(&firstRequest);
@@ -539,6 +690,8 @@ HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
   if (SUCCEEDED(hr)) {
     ++requestSampleSuccessCount_;
     ++samplesDelivered_;
+    ++pacingMediaSampleQueued_;
+    ++pacingMediaSampleQueuedTotal_;
     if (requestIndex <= 3) {
       LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEMediaSample, hr, S_OK,
                     GUID_NULL, true, sample.Get(), 0, lastSequence_, S_OK);
@@ -554,6 +707,7 @@ HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
       LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.QueueEvent", hr);
     }
   }
+  MaybeLogPacingSummaryLocked(L"PacingSummary", hr, false);
   return hr;
 }
 

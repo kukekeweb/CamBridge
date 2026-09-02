@@ -13,6 +13,7 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <chrono>
 #include <mutex>
 
 namespace cambridge::native {
@@ -76,6 +77,8 @@ class CamBridgeMediaStream final
   HRESULT CreateSample(IMFSample** sample);
   void LogAllocatorState(const wchar_t* eventName, HRESULT hr,
                          IMFMediaType* mediaType = nullptr) const;
+  void ResetPacingDiagnosticsLocked();
+  void MaybeLogPacingSummaryLocked(const wchar_t* eventName, HRESULT hr, bool force);
 
   Microsoft::WRL::ComPtr<IMFMediaSource> parent_;
   Microsoft::WRL::ComPtr<IMFMediaEventQueue> events_;
@@ -103,6 +106,30 @@ class CamBridgeMediaStream final
   std::uint32_t width_ = 1920;
   std::uint32_t height_ = 1080;
   std::uint32_t stride_ = 1920;
+  std::chrono::steady_clock::time_point streamStartSteady_{};
+  std::chrono::steady_clock::time_point pacingWindowStart_{};
+  std::chrono::steady_clock::time_point lastPacingSampleLogSteady_{};
+  LONGLONG streamStartSystemTime100ns_ = 0;
+  bool hasLastSampleTimestamp_ = false;
+  std::uint64_t pacingRequestSamples_ = 0;
+  std::uint64_t pacingAllocateSampleCalls_ = 0;
+  std::uint64_t pacingSamplesCreated_ = 0;
+  std::uint64_t pacingMediaSampleQueued_ = 0;
+  std::uint64_t pacingMediaSampleEndGetEvent_ = 0;
+  std::uint64_t pacingBeginGetEvent_ = 0;
+  std::uint64_t pacingIpcReadAttempts_ = 0;
+  std::uint64_t pacingIpcNewFrames_ = 0;
+  std::uint64_t pacingUniqueIpcSequences_ = 0;
+  std::uint64_t pacingDuplicateIpcSequenceSamples_ = 0;
+  std::uint64_t pacingLatestIpcSequence_ = 0;
+  std::uint64_t pacingWindowLastIpcSequence_ = 0;
+  std::uint64_t pacingMediaSampleQueuedTotal_ = 0;
+  std::uint64_t pacingMediaSampleEndGetEventTotal_ = 0;
+  std::uint32_t lastIpcWidth_ = 0;
+  std::uint32_t lastIpcHeight_ = 0;
+  std::uint32_t lastIpcStride_ = 0;
+  std::uint32_t lastIpcPayloadBytes_ = 0;
+  std::uint32_t lastCopiedBytes_ = 0;
 };
 
 class CamBridgeMediaSource final

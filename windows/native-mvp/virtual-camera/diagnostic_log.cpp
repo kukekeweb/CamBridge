@@ -255,4 +255,82 @@ void LogRequestSampleSummary(const wchar_t* component, const wchar_t* eventName,
                 std::to_wstring(lastSequence));
 }
 
+void LogPacingSummary(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                      std::uint64_t windowElapsed100ns,
+                      std::uint64_t requestSamples,
+                      std::uint64_t allocateSampleCalls,
+                      std::uint64_t samplesCreated,
+                      std::uint64_t mediaSampleQueued,
+                      std::uint64_t mediaSampleEndGetEvent,
+                      std::uint64_t beginGetEvent,
+                      std::uint64_t ipcReadAttempts,
+                      std::uint64_t ipcNewFrames,
+                      std::uint64_t uniqueIpcSequences,
+                      std::uint64_t duplicateIpcSequenceSamples,
+                      std::uint64_t latestIpcSequence,
+                      std::uint64_t pendingMediaSamples,
+                      std::uint64_t totalRequests,
+                      std::uint64_t totalSamplesCreated,
+                      std::uint64_t totalSamplesDelivered) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" windowElapsed100ns=" +
+                std::to_wstring(windowElapsed100ns) + L" requestSamples=" +
+                std::to_wstring(requestSamples) + L" allocateSampleCalls=" +
+                std::to_wstring(allocateSampleCalls) + L" samplesCreated=" +
+                std::to_wstring(samplesCreated) + L" mediaSampleQueued=" +
+                std::to_wstring(mediaSampleQueued) + L" mediaSampleEndGetEvent=" +
+                std::to_wstring(mediaSampleEndGetEvent) + L" beginGetEvent=" +
+                std::to_wstring(beginGetEvent) + L" ipcReadAttempts=" +
+                std::to_wstring(ipcReadAttempts) + L" ipcNewFrames=" +
+                std::to_wstring(ipcNewFrames) + L" uniqueIpcSequences=" +
+                std::to_wstring(uniqueIpcSequences) + L" duplicateIpcSequenceSamples=" +
+                std::to_wstring(duplicateIpcSequenceSamples) + L" latestIpcSequence=" +
+                std::to_wstring(latestIpcSequence) + L" pendingMediaSamples=" +
+                std::to_wstring(pendingMediaSamples) + L" totalRequests=" +
+                std::to_wstring(totalRequests) + L" totalSamplesCreated=" +
+                std::to_wstring(totalSamplesCreated) + L" totalSamplesDelivered=" +
+                std::to_wstring(totalSamplesDelivered));
+}
+
+void LogPacingSample(const wchar_t* component, const wchar_t* eventName, HRESULT hr,
+                     const void* sample,
+                     std::uint64_t sampleIndex,
+                     std::uint64_t ipcSequence,
+                     LONGLONG sampleTime100ns,
+                     LONGLONG previousSampleTime100ns,
+                     LONGLONG sampleDelta100ns,
+                     LONGLONG sampleDuration100ns,
+                     std::uint64_t wallClockElapsed100ns,
+                     LONGLONG sampleRelative100ns,
+                     LONGLONG sampleMinusWallClock100ns,
+                     std::uint32_t negotiatedWidth,
+                     std::uint32_t negotiatedHeight,
+                     std::uint32_t allocatedBufferCapacity,
+                     std::uint32_t currentLength,
+                     std::uint32_t ipcWidth,
+                     std::uint32_t ipcHeight,
+                     std::uint32_t ipcStride,
+                     std::uint32_t ipcPayloadBytes,
+                     std::uint32_t copiedBytes) {
+  LogPrefix(component, eventName,
+            L"hr=" + HResultText(hr) + L" sample=" + PointerText(sample) +
+                L" sampleIndex=" + std::to_wstring(sampleIndex) + L" ipcSequence=" +
+                std::to_wstring(ipcSequence) + L" sampleTime100ns=" +
+                std::to_wstring(sampleTime100ns) + L" previousSampleTime100ns=" +
+                std::to_wstring(previousSampleTime100ns) + L" sampleDelta100ns=" +
+                std::to_wstring(sampleDelta100ns) + L" sampleDuration100ns=" +
+                std::to_wstring(sampleDuration100ns) + L" wallClockElapsed100ns=" +
+                std::to_wstring(wallClockElapsed100ns) + L" sampleRelative100ns=" +
+                std::to_wstring(sampleRelative100ns) + L" sampleMinusWallClock100ns=" +
+                std::to_wstring(sampleMinusWallClock100ns) + L" negotiatedWidth=" +
+                std::to_wstring(negotiatedWidth) + L" negotiatedHeight=" +
+                std::to_wstring(negotiatedHeight) + L" allocatedBufferCapacity=" +
+                std::to_wstring(allocatedBufferCapacity) + L" currentLength=" +
+                std::to_wstring(currentLength) + L" ipcWidth=" +
+                std::to_wstring(ipcWidth) + L" ipcHeight=" + std::to_wstring(ipcHeight) +
+                L" ipcStride=" + std::to_wstring(ipcStride) + L" ipcPayloadBytes=" +
+                std::to_wstring(ipcPayloadBytes) + L" copiedBytes=" +
+                std::to_wstring(copiedBytes));
+}
+
 }  // namespace cambridge::native
