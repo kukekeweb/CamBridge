@@ -203,7 +203,10 @@ function createStage1HttpsServer({ pfx, passphrase, webRoot }) {
       console.error(`Request error: ${error.message}`);
     });
   });
-  const signaling = attachSignalingWebSocket(server, { path: "/signaling" });
+  const signaling = attachSignalingWebSocket(server, {
+    path: "/signaling",
+    log: (message) => console.log(`[signaling] ${message}`),
+  });
   return { server, signaling };
 }
 

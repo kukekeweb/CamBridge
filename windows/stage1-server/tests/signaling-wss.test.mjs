@@ -64,7 +64,11 @@ async function close(socket) {
 
 test("accepts same-origin signaling upgrade and relays browser/native messages", async (t) => {
   const httpServer = createServer();
-  const signaling = attachSignalingWebSocket(httpServer, { path: "/signaling" });
+  const events = [];
+  const signaling = attachSignalingWebSocket(httpServer, {
+    path: "/signaling",
+    log: (message) => events.push(message),
+  });
   await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const { port } = httpServer.address();
   const browser = await open(`ws://127.0.0.1:${port}/signaling`);
@@ -82,11 +86,20 @@ test("accepts same-origin signaling upgrade and relays browser/native messages",
   assert.deepEqual(await waitForMessage(native), { type: "offer", sessionId: "s1", sdp: "v=0\r\na=mid:0" });
   native.send(JSON.stringify({ type: "answer", sessionId: "s1", sdp: "v=0\r\na=mid:0" }));
   assert.deepEqual(await waitForMessage(browser), { type: "answer", sessionId: "s1", sdp: "v=0\r\na=mid:0" });
+  assert.equal(events.filter((event) => event.includes("WSS connection")).length, 2);
+  assert.ok(events.some((event) => event.includes("type=hello")));
+  assert.ok(events.some((event) => event.includes("type=offer")));
+  assert.ok(events.some((event) => event.includes("type=answer")));
 });
 
 test("sends a bounded protocol error for a malformed signaling message", async (t) => {
   const httpServer = createServer();
-  const signaling = attachSignalingWebSocket(httpServer, { path: "/signaling", maxMessageBytes: 128 });
+  const events = [];
+  const signaling = attachSignalingWebSocket(httpServer, {
+    path: "/signaling",
+    maxMessageBytes: 128,
+    log: (message) => events.push(message),
+  });
   await new Promise((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const { port } = httpServer.address();
   const browser = await open(`ws://127.0.0.1:${port}/signaling`);
@@ -98,4 +111,5 @@ test("sends a bounded protocol error for a malformed signaling message", async (
 
   browser.send("{");
   assert.deepEqual(await waitForMessage(browser), { type: "error", code: "invalid_json" });
+  assert.ok(events.some((event) => event.includes("protocol-error") && event.includes("code=invalid_json")));
 });
