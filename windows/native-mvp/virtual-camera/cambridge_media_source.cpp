@@ -50,6 +50,79 @@ void FillBlack(BYTE* data, std::size_t bytes, std::uint32_t stride, std::uint32_
               static_cast<std::size_t>(stride) * height / 2);
 }
 
+bool ConvertNv12FrameToLayoutImpl(const Nv12Frame& input, std::uint32_t targetWidth,
+                                  std::uint32_t targetHeight, std::uint32_t targetStride,
+                                  Nv12Frame* output) {
+  if (output == nullptr || input.width == 0 || input.height == 0 ||
+      (input.width % 2) != 0 || (input.height % 2) != 0 || targetWidth == 0 ||
+      targetHeight == 0 || (targetWidth % 2) != 0 || (targetHeight % 2) != 0 ||
+      targetStride < targetWidth || input.stride < input.width ||
+      input.bytes.size() < static_cast<std::size_t>(input.stride) * input.height * 3 / 2) {
+    return false;
+  }
+
+  Nv12Frame result;
+  result.width = targetWidth;
+  result.height = targetHeight;
+  result.stride = targetStride;
+  result.timestamp100ns = input.timestamp100ns;
+  result.sequence = input.sequence;
+  result.bytes.resize(static_cast<std::size_t>(targetStride) * targetHeight * 3 / 2);
+
+  if (input.width == targetWidth && input.height == targetHeight) {
+    for (std::uint32_t row = 0; row < targetHeight; ++row) {
+      std::memcpy(result.bytes.data() + static_cast<std::size_t>(row) * targetStride,
+                  input.bytes.data() + static_cast<std::size_t>(row) * input.stride,
+                  targetStride);
+    }
+    const auto sourceUv = input.bytes.data() + static_cast<std::size_t>(input.stride) * input.height;
+    auto* targetUv = result.bytes.data() + static_cast<std::size_t>(targetStride) * targetHeight;
+    for (std::uint32_t row = 0; row < targetHeight / 2; ++row) {
+      std::memcpy(targetUv + static_cast<std::size_t>(row) * targetStride,
+                  sourceUv + static_cast<std::size_t>(row) * input.stride,
+                  targetStride);
+    }
+    *output = std::move(result);
+    return true;
+  }
+
+  if (input.width != targetHeight || input.height != targetWidth ||
+      targetStride != targetWidth) {
+    return false;
+  }
+
+  const auto sourceY = input.bytes.data();
+  auto* targetY = result.bytes.data();
+  for (std::uint32_t y = 0; y < targetHeight; ++y) {
+    for (std::uint32_t x = 0; x < targetWidth; ++x) {
+      const auto sourceX = y;
+      const auto sourceYRow = input.height - 1 - x;
+      targetY[static_cast<std::size_t>(y) * targetStride + x] =
+          sourceY[static_cast<std::size_t>(sourceYRow) * input.stride + sourceX];
+    }
+  }
+
+  const auto sourceUv = input.bytes.data() + static_cast<std::size_t>(input.stride) * input.height;
+  auto* targetUv = result.bytes.data() + static_cast<std::size_t>(targetStride) * targetHeight;
+  const auto sourceChromaHeight = input.height / 2;
+  const auto targetChromaWidth = targetWidth / 2;
+  const auto targetChromaHeight = targetHeight / 2;
+  for (std::uint32_t y = 0; y < targetChromaHeight; ++y) {
+    for (std::uint32_t x = 0; x < targetChromaWidth; ++x) {
+      const auto sourceX = y;
+      const auto sourceYRow = sourceChromaHeight - 1 - x;
+      const auto sourceOffset = static_cast<std::size_t>(sourceYRow) * input.stride +
+                                static_cast<std::size_t>(sourceX) * 2;
+      const auto targetOffset = static_cast<std::size_t>(y) * targetStride +
+                                static_cast<std::size_t>(x) * 2;
+      targetUv[targetOffset] = sourceUv[sourceOffset];
+      targetUv[targetOffset + 1] = sourceUv[sourceOffset + 1];
+    }
+  }
+  *output = std::move(result);
+  return true;
+}
+
 void LogObservedEvent(const wchar_t* component, const wchar_t* operation,
                       IMFMediaEvent* event, HRESULT callHr, DWORD streamId = 0,
                       std::uint64_t sequence = 0) {
@@ -78,6 +151,12 @@ void LogObservedEvent(const wchar_t* component, const wchar_t* operation,
 }
 
 }  // namespace
+
+bool ConvertNv12FrameToLayout(const Nv12Frame& input, std::uint32_t targetWidth,
+                              std::uint32_t targetHeight, std::uint32_t targetStride,
+                              Nv12Frame* output) {
+  return ConvertNv12FrameToLayoutImpl(input, targetWidth, targetHeight, targetStride, output);
+}
 
 HRESULT CamBridgeMediaStream::QueryInterface(REFIID iid, void** result) {
   const HRESULT hr = RuntimeBase::QueryInterface(iid, result);
@@ -376,10 +455,12 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
                  ipcStatus.mappingOpen, ipcStatus.openError, ipcStatus.producerState,
                  ipcStatus.publishedSequence, ipcStatus.lastReadSequence);
   }
-  if (readLatest && frame.width == width_ && frame.height == height_ &&
-      frame.stride == stride_ && frame.bytes.size() == bytes) {
-    lastFrame_ = std::move(frame);
-    lastSequence_ = lastFrame_.sequence;
+  if (readLatest) {
+    Nv12Frame converted;
+    if (ConvertNv12FrameToLayout(frame, width_, height_, stride_, &converted)) {
+      lastFrame_ = std::move(converted);
+      lastSequence_ = lastFrame_.sequence;
+    }
   }
   // SourceReader may request samples slightly faster than the producer's
   // cadence. Reuse the most recent valid frame instead of turning a normal

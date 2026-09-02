@@ -19,6 +19,13 @@ namespace cambridge::native {
 
 extern HMODULE g_camBridgeModule;
 
+// Converts an NV12 frame to the layout requested by the Media Foundation
+// stream. Equal layouts are copied without a transform; swapped dimensions
+// are rotated clockwise so portrait clients receive portrait video.
+bool ConvertNv12FrameToLayout(const Nv12Frame& input, std::uint32_t targetWidth,
+                              std::uint32_t targetHeight, std::uint32_t targetStride,
+                              Nv12Frame* output);
+
 // {F6DC0D8C-8D0E-4DD2-9F5C-A9B83A2A3A61}
 inline constexpr GUID kCamBridgeMediaSourceClsid =
     {0xf6dc0d8c, 0x8d0e, 0x4dd2, {0x9f, 0x5c, 0xa9, 0xb8, 0x3a, 0x2a, 0x3a, 0x61}};

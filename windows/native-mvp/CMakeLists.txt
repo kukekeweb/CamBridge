@@ -66,6 +66,15 @@ target_include_directories(cambridge_media_source_tests PRIVATE include virtual-
 target_compile_definitions(cambridge_media_source_tests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(cambridge_media_source_tests PRIVATE cambridge_frame_ipc mf mfplat mfuuid ole32)
 
+add_executable(cambridge_media_source_layout_tests
+  tests/media_source_layout_tests.cpp
+  virtual-camera/cambridge_media_source.cpp
+  virtual-camera/diagnostic_log.cpp
+)
+target_include_directories(cambridge_media_source_layout_tests PRIVATE include virtual-camera)
+target_compile_definitions(cambridge_media_source_layout_tests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_link_libraries(cambridge_media_source_layout_tests PRIVATE cambridge_frame_ipc mf mfplat mfuuid mfsensorgroup shlwapi ole32 advapi32)
+
 add_executable(cambridge_allocator_identity_tests
   tests/allocator_identity_tests.cpp
 )
@@ -204,6 +213,8 @@ enable_testing()
 add_test(NAME cambridge_frame_ipc_tests COMMAND cambridge_frame_ipc_tests)
 add_test(NAME cambridge_media_source_tests
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source>)
+add_test(NAME cambridge_media_source_layout_tests
+  COMMAND cambridge_media_source_layout_tests)
 add_test(NAME cambridge_media_source_tests_provided_allocator
   COMMAND cambridge_media_source_tests $<TARGET_FILE:cambridge_media_source> --provided-allocator)
 add_test(NAME cambridge_media_source_tests_portrait
