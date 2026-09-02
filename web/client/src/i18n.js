@@ -61,6 +61,7 @@ export const TEXT = Object.freeze({
   webrtcOfferCreateTimeout: "Offerの作成が10秒以内に完了しませんでした",
   webrtcLocalDescriptionTimeout: "Local Descriptionの設定が10秒以内に完了しませんでした",
   webrtcSteps: Object.freeze({
+    "codec-preference": "H.264優先設定",
     "offer-create-begin": "Offerを作成中",
     "offer-created": "Offerを作成しました",
     "local-description-begin": "Local Descriptionを設定中",

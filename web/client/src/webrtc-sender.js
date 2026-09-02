@@ -271,10 +271,6 @@ export class WebRtcSender {
         iceTransportPolicy: "all",
       });
       this.transceiver = this.peerConnection.addTransceiver(this.track, { direction: "sendonly" });
-      if (typeof this.transceiver.setCodecPreferences !== "function") {
-        throw new Error(TEXT.webrtcCodecPreferenceUnavailable);
-      }
-      this.transceiver.setCodecPreferences(codecs);
       this.peerConnection.onicecandidate = (event) => {
         const candidate = event.candidate
           ? (typeof event.candidate.toJSON === "function" ? event.candidate.toJSON() : event.candidate)
@@ -320,6 +316,12 @@ export class WebRtcSender {
             this.lastSignalingStep = "socket-open";
             this.send({ type: "hello", role: "browser", sessionId: this.sessionId });
             this.lastSignalingStep = "hello-sent";
+            this.lastSignalingStep = "codec-preference";
+            this.emitStatus("connecting:codec-preference");
+            if (typeof this.transceiver.setCodecPreferences !== "function") {
+              throw new Error(TEXT.webrtcCodecPreferenceUnavailable);
+            }
+            this.transceiver.setCodecPreferences(codecs);
             this.lastSignalingStep = "offer-create-begin";
             this.emitStatus("connecting:offer-create-begin");
             const offer = await withTimeout(

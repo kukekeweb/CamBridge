@@ -135,10 +135,11 @@ test("creates a LAN-only H264 offer and handles answer/ICE", async () => {
   const peer = FakePeerConnection.instances[0];
   assert.equal(peer.configuration.iceServers.length, 0);
   assert.deepEqual(peer.transceiver.options, { direction: "sendonly" });
-  assert.equal(peer.transceiver.codecPreferences.length, 1);
-  assert.equal(peer.transceiver.codecPreferences[0].mimeType, "video/H264");
+  assert.equal(peer.transceiver.codecPreferences, null);
 
   socket.open();
+  assert.equal(peer.transceiver.codecPreferences.length, 1);
+  assert.equal(peer.transceiver.codecPreferences[0].mimeType, "video/H264");
   await connectPromise;
   assert.equal(peer.transceiver.sender.parameters.encodings[0].scaleResolutionDownBy, 1);
   assert.equal(peer.transceiver.sender.parameters.encodings[0].maxFramerate, 60);
@@ -183,6 +184,32 @@ test("cleans up the signaling socket when Offer creation fails", async () => {
   assert.equal(sender.websocket, null);
   assert.equal(sender.peerConnection, null);
   assert.equal(socket.readyState, 3);
+});
+
+test("reports codec preference failures after the signaling hello boundary", async () => {
+  const statuses = [];
+  const sender = makeSender({
+    onStatus: (status) => statuses.push(status),
+  });
+  const originalFactory = FakePeerConnection.prototype.addTransceiver;
+  FakePeerConnection.prototype.addTransceiver = function (...args) {
+    const transceiver = originalFactory.call(this, ...args);
+    transceiver.setCodecPreferences = () => {
+      throw new Error("codec preference test failure");
+    };
+    return transceiver;
+  };
+  try {
+    const connectPromise = sender.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    await assert.rejects(connectPromise, /codec preference test failure/);
+    assert.deepEqual(socket.sent[0], { version: 1, type: "hello", role: "browser", sessionId: "s1" });
+    assert.equal(socket.sent.length, 1);
+    assert.ok(statuses.includes("connecting:codec-preference"));
+  } finally {
+    FakePeerConnection.prototype.addTransceiver = originalFactory;
+  }
 });
 
 test("configures the sender without failing when degradationPreference is unsupported", async () => {
