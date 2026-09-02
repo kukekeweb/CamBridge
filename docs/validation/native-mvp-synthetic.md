@@ -387,3 +387,37 @@ The capture-child diagnostic was written to
 `C:\Users\kukeke\AppData\Local\Temp\CamBridge-capture-child-23156-44191062.log`.
 This is a second bounded installed-artifact PASS, not a WebRTC or iPhone-camera
 result.
+
+## Current-source bounded gate repeat (2026-09-02 23:37 JST)
+
+The current checkout was revalidated against the already registered CamBridge
+Virtual Camera without changing Frame Server registration or adding WebRTC
+behavior to the Media Source. A finite Synthetic Publisher was started, its
+shared-memory IPC readiness was checked, and the capture probe was run with its
+existing bounded timeout. The publisher was stopped by PID after the probe.
+
+Observed result:
+
+```text
+CamBridge camera found: YES
+SourceReader selected media type: subtype=NV12 width=1920 height=1080 fps=60/1
+ReadSample #1: S_OK, MF_SOURCE_READERF_STREAMTICK, sample=no
+ReadSample #2: S_OK, flags=0, sample=yes
+Samples received: 120
+Capture child exit: 0
+Synthetic/sample probe: 120 samples
+Residual synthetic publisher processes: 0
+```
+
+The bounded capture child and publisher diagnostics are retained under
+`build/native-mvp/diagnostics/synthetic-gate/` for this run. This is the
+authoritative current-source repeat of the Synthetic Publisher → IPC → Media
+Source/Frame Server → Virtual Camera → SourceReader gate. It does not claim
+Safari WebRTC reception, live-camera image content, hardware decode, or Discord
+acceptance.
+
+The native receiver may run at the same time for the next gate; its waiting
+state is expected until Safari sends an Offer. A receiver log with
+`rawRtpPackets=0`, `accessUnits=0`, and `peerState=new` proves only that no
+browser session has arrived yet. It is not evidence of a regression in this
+synthetic gate.

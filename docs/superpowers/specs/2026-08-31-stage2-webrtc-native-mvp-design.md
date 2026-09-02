@@ -259,3 +259,25 @@ not a claim that browser timestamps alone provide end-to-end latency.
 Stage 2 does not implement H.265, D3D11 preview UI, installer auto-start, QR,
 multi-device sessions, Virtual Camera registration changes, kernel drivers,
 OBS integration, or internet relay.
+
+## Current implementation note (2026-09-02)
+
+The bounded native synthetic gate was repeated from the current source state:
+the existing CamBridge Virtual Camera exposed NV12 1920x1080 at 60/1 and the
+SourceReader received 120 samples with a clean child exit. This closes the old
+sample-delivery investigation; the synthetic result is still kept as a
+regression baseline for every WebRTC change.
+
+The same-origin WSS server now records only signaling control-path summaries
+(connection, message type/size, protocol error, close, and error). It does not
+log SDP bodies or media bytes. This is needed to distinguish a browser-side
+Offer-generation failure from a native receiver or ICE failure. In one live
+diagnostic run the browser reached WSS `hello` but sent no `offer`; the sender
+parameter tuning was therefore moved after Offer transmission and made
+non-blocking. The browser must be reloaded to receive this current sender code;
+the native receiver and Media Source contracts are unchanged.
+
+Until a fresh Safari run produces an Offer, Answer, selected private-LAN
+candidate pair, decoded frames, and published frames, WebRTC live acceptance
+remains unproven. No H.264/HEVC support claim is inferred from browser codec
+capabilities alone.
