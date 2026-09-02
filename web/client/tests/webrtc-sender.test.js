@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   WebRtcSender,
+  configureVideoSender,
   formatWebRtcLayout,
   formatWebRtcTrackRequirementError,
   summarizeWebRtcStats,
@@ -39,6 +40,7 @@ class FakeWebSocket {
 
 class FakePeerConnection {
   static instances = [];
+  static senderSetParameters = null;
 
   constructor(configuration) {
     this.configuration = configuration;
@@ -53,6 +55,16 @@ class FakePeerConnection {
     this.transceiver = {
       track,
       options,
+      sender: {
+        parameters: { encodings: [{}] },
+        getParameters() { return this.parameters; },
+        async setParameters(parameters) {
+          if (FakePeerConnection.senderSetParameters) {
+            return FakePeerConnection.senderSetParameters.call(this, parameters);
+          }
+          this.parameters = parameters;
+        },
+      },
       codecPreferences: null,
       setCodecPreferences: (codecs) => {
         this.transceiver.codecPreferences = codecs;
@@ -102,6 +114,7 @@ const capabilities = {
 function makeSender(overrides = {}) {
   FakeWebSocket.instances = [];
   FakePeerConnection.instances = [];
+  FakePeerConnection.senderSetParameters = null;
   return new WebRtcSender({
     signalingUrl: "wss://192.168.11.2:8443/signaling",
     sessionId: "s1",
@@ -127,6 +140,9 @@ test("creates a LAN-only H264 offer and handles answer/ICE", async () => {
 
   socket.open();
   await connectPromise;
+  assert.equal(peer.transceiver.sender.parameters.encodings[0].scaleResolutionDownBy, 1);
+  assert.equal(peer.transceiver.sender.parameters.encodings[0].maxFramerate, 60);
+  assert.equal(peer.transceiver.sender.parameters.degradationPreference, "maintain-resolution");
   assert.deepEqual(socket.sent[0], { version: 1, type: "hello", role: "browser", sessionId: "s1" });
   assert.equal(socket.sent[1].type, "offer");
   assert.equal(socket.sent[1].sessionId, "s1");
@@ -141,6 +157,38 @@ test("creates a LAN-only H264 offer and handles answer/ICE", async () => {
   assert.equal(peer.addedCandidates.length, 1);
   assert.ok(statuses.includes("connected"));
   sender.close();
+});
+
+test("does not block Offer on Safari sender parameter tuning", async () => {
+  const sender = makeSender();
+  FakePeerConnection.senderSetParameters = () => new Promise(() => {});
+  const connectPromise = sender.connect();
+  const socket = FakeWebSocket.instances[0];
+  socket.open();
+  await connectPromise;
+  assert.equal(socket.sent[0].type, "hello");
+  assert.equal(socket.sent[1].type, "offer");
+  sender.close();
+  FakePeerConnection.senderSetParameters = null;
+});
+
+test("configures the sender without failing when degradationPreference is unsupported", async () => {
+  let calls = 0;
+  const sender = {
+    getParameters: () => ({ encodings: [{}] }),
+    setParameters: async (parameters) => {
+      calls += 1;
+      if (parameters.degradationPreference) throw new Error("unsupported field");
+      sender.parameters = parameters;
+    },
+  };
+  const result = await configureVideoSender(sender);
+  assert.equal(result.applied, true);
+  assert.equal(result.degradationPreference, false);
+  assert.equal(calls, 2);
+  assert.equal(sender.parameters.encodings[0].scaleResolutionDownBy, 1);
+  assert.equal(sender.parameters.encodings[0].maxFramerate, 60);
+  assert.equal(sender.parameters.encodings[0].maxBitrate, 8000000);
 });
 
 test("fails without runtime H264 capability and does not silently choose another codec", async () => {

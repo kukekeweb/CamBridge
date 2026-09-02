@@ -25,6 +25,55 @@ function exactTarget(track) {
   );
 }
 
+export async function configureVideoSender(sender, {
+  maxBitrate = 8000000,
+  maxFramerate = TARGET_FPS,
+} = {}) {
+  if (!sender || typeof sender.getParameters !== "function" ||
+      typeof sender.setParameters !== "function") {
+    return { supported: false, applied: false, reason: "sender parameters API unavailable" };
+  }
+  const parameters = sender.getParameters() ?? {};
+  const encodings = Array.isArray(parameters.encodings) && parameters.encodings.length > 0
+    ? parameters.encodings
+    : [{}];
+  const tuned = {
+    ...parameters,
+    encodings: encodings.map((encoding) => ({
+      ...encoding,
+      active: encoding.active !== false,
+      maxBitrate,
+      maxFramerate,
+      scaleResolutionDownBy: 1,
+    })),
+  };
+  // Safari versions that expose the field accept the standard value. If the
+  // field is rejected, retry without it so codec negotiation still proceeds.
+  tuned.degradationPreference = "maintain-resolution";
+  try {
+    await sender.setParameters(tuned);
+    return { supported: true, applied: true, degradationPreference: true };
+  } catch (firstError) {
+    const retry = { ...tuned };
+    delete retry.degradationPreference;
+    try {
+      await sender.setParameters(retry);
+      return {
+        supported: true,
+        applied: true,
+        degradationPreference: false,
+        error: errorMessage(firstError),
+      };
+    } catch (secondError) {
+      return {
+        supported: true,
+        applied: false,
+        error: errorMessage(secondError),
+      };
+    }
+  }
+}
+
 function formatTrackSettings(settings) {
   return `${settings?.width ?? "?"}×${settings?.height ?? "?"} / ${settings?.frameRate ?? "?"}fps`;
 }
@@ -256,8 +305,12 @@ export class WebRtcSender {
             this.lastSignalingStep = "socket-open";
             this.send({ type: "hello", role: "browser", sessionId: this.sessionId });
             this.lastSignalingStep = "hello-sent";
+            this.lastSignalingStep = "offer-create-begin";
             const offer = await this.peerConnection.createOffer();
+            this.lastSignalingStep = "offer-created";
+            this.lastSignalingStep = "local-description-begin";
             await this.peerConnection.setLocalDescription(offer);
+            this.lastSignalingStep = "local-description-set";
             this.send({
               type: "offer",
               sessionId: this.sessionId,
@@ -268,6 +321,18 @@ export class WebRtcSender {
             for (const candidate of pendingIce) this.send(candidate);
             this.emitStatus("offered");
             resolveOnce();
+
+            // Sender tuning is deliberately post-offer. Some Safari builds can
+            // delay or reject setParameters; it must never block signaling.
+            configureVideoSender(this.transceiver.sender)
+              .then((result) => { this.senderParameters = result; })
+              .catch((error) => {
+                this.senderParameters = {
+                  supported: true,
+                  applied: false,
+                  error: errorMessage(error),
+                };
+              });
           } catch (error) {
             this.fail(error);
             rejectOnce(error);
