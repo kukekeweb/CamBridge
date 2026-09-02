@@ -21,6 +21,50 @@ void TestEstimateFpsFromTimestamps() {
   assert(cambridge::native::EstimateFpsFromTimestamps(2, 100, 100) == 0.0);
 }
 
+void TestNormalizeNv12FrameKeepsExactTargetWithoutChangingMetadata() {
+  cambridge::native::Nv12Frame input;
+  input.width = 4;
+  input.height = 2;
+  input.stride = 4;
+  input.timestamp100ns = 123;
+  input.sequence = 7;
+  input.bytes = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+  cambridge::native::Nv12Frame output;
+  assert(cambridge::native::NormalizeNv12Frame(input, 4, 2, &output));
+  assert(output.width == 4 && output.height == 2 && output.stride == 4);
+  assert(output.timestamp100ns == 123 && output.sequence == 7);
+  assert(output.bytes == input.bytes);
+}
+
+void TestNormalizeNv12FrameScalesLumaAndChromaToTarget() {
+  cambridge::native::Nv12Frame input;
+  input.width = 2;
+  input.height = 2;
+  input.stride = 4;
+  input.bytes = {10, 20, 99, 99, 30, 40, 99, 99, 128, 128, 77, 77};
+  cambridge::native::Nv12Frame output;
+  assert(cambridge::native::NormalizeNv12Frame(input, 4, 2, &output));
+  assert(output.width == 4 && output.height == 2 && output.stride == 4);
+  assert(output.bytes.size() == 12);
+  assert(output.bytes[0] == 10 && output.bytes[1] == 10 && output.bytes[2] == 20 &&
+         output.bytes[3] == 20);
+  assert(output.bytes[4] == 30 && output.bytes[5] == 30 && output.bytes[6] == 40 &&
+         output.bytes[7] == 40);
+  assert(output.bytes[8] == 128 && output.bytes[9] == 128 && output.bytes[10] == 128 &&
+         output.bytes[11] == 128);
+}
+
+void TestNormalizeNv12FrameRejectsInvalidInput() {
+  cambridge::native::Nv12Frame input;
+  input.width = 3;
+  input.height = 2;
+  input.stride = 3;
+  input.bytes.resize(9);
+  cambridge::native::Nv12Frame output;
+  assert(!cambridge::native::NormalizeNv12Frame(input, 4, 2, &output));
+  assert(!cambridge::native::NormalizeNv12Frame(input, 4, 2, nullptr));
+}
+
 std::wstring UniqueName(const wchar_t* suffix) {
   return std::wstring(L"Local\\CamBridge.ReceiverPipeline.Test.") +
          std::to_wstring(GetCurrentProcessId()) + L"." + suffix;
@@ -146,6 +190,9 @@ void TestFixtureAcceptsAccessUnitsFromReceiverCallbackThread() {
 
 int main() {
   TestEstimateFpsFromTimestamps();
+  TestNormalizeNv12FrameKeepsExactTargetWithoutChangingMetadata();
+  TestNormalizeNv12FrameScalesLumaAndChromaToTarget();
+  TestNormalizeNv12FrameRejectsInvalidInput();
   TestRejectsInputBeforeStart();
   TestStartStopOwnsDecoderAndPublisherLifecycle();
   TestFixturePublishesDecodedNv12WhenProvided();

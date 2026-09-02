@@ -64,6 +64,7 @@ class MediaFoundationH264Decoder {
 
  private:
   bool Fail(std::string message);
+  bool DrainOutput();
   H264DecoderConfig config_;
   H264DecoderMetrics metrics_;
   FrameHandler frameHandler_;

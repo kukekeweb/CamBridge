@@ -296,39 +296,10 @@ bool MediaFoundationH264Decoder::Start(const H264DecoderConfig& config) {
   return true;
 }
 
-bool MediaFoundationH264Decoder::SubmitAccessUnit(
-    const std::vector<std::uint8_t>& accessUnit, std::int64_t timestamp100ns,
-    std::int64_t duration100ns) {
+bool MediaFoundationH264Decoder::DrainOutput() {
   if (!started_ || !impl_ || !impl_->transform) return Fail("decoder is not started");
-  if (accessUnit.empty() || accessUnit.size() > std::numeric_limits<DWORD>::max()) {
-    return Fail("empty or oversized H264 access unit");
-  }
 
-  ComPtr<IMFMediaBuffer> buffer;
-  HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(accessUnit.size()), &buffer);
-  BYTE* destination = nullptr;
-  DWORD maxLength = 0;
-  DWORD currentLength = 0;
-  if (SUCCEEDED(hr)) hr = buffer->Lock(&destination, &maxLength, &currentLength);
-  if (SUCCEEDED(hr)) {
-    std::memcpy(destination, accessUnit.data(), accessUnit.size());
-    hr = buffer->Unlock();
-  }
-  if (SUCCEEDED(hr)) hr = buffer->SetCurrentLength(static_cast<DWORD>(accessUnit.size()));
-  ComPtr<IMFSample> sample;
-  if (SUCCEEDED(hr)) hr = MFCreateSample(&sample);
-  if (SUCCEEDED(hr)) hr = sample->AddBuffer(buffer.Get());
-  if (SUCCEEDED(hr)) hr = sample->SetSampleTime(timestamp100ns);
-  if (SUCCEEDED(hr)) hr = sample->SetSampleDuration(duration100ns);
-  if (FAILED(hr)) return Fail(HresultText("create H264 input sample", hr));
-
-  hr = impl_->transform->ProcessInput(0, sample.Get(), 0);
-  if (FAILED(hr)) return Fail(HresultText("H264 decoder ProcessInput", hr));
-  ++metrics_.inputAccessUnits;
-  impl_->lastInputTimestamp = timestamp100ns;
-  impl_->lastInputDuration = duration100ns;
-
-  for (int outputIndex = 0; outputIndex < 8; ++outputIndex) {
+  for (int outputIndex = 0; outputIndex < 16; ++outputIndex) {
     MFT_OUTPUT_DATA_BUFFER output{};
     DWORD status = 0;
     ComPtr<IMFSample> suppliedSample;
@@ -338,19 +309,20 @@ bool MediaFoundationH264Decoder::SubmitAccessUnit(
         bufferBytes = metrics_.outputStride * metrics_.outputHeight * 3 / 2;
       }
       ComPtr<IMFMediaBuffer> outputBuffer;
-      hr = MFCreateMemoryBuffer(bufferBytes, &outputBuffer);
+      HRESULT hr = MFCreateMemoryBuffer(bufferBytes, &outputBuffer);
       if (SUCCEEDED(hr)) hr = MFCreateSample(&suppliedSample);
       if (SUCCEEDED(hr)) hr = suppliedSample->AddBuffer(outputBuffer.Get());
       output.pSample = suppliedSample.Get();
       if (FAILED(hr)) return Fail(HresultText("create H264 output sample", hr));
     }
+
     ++metrics_.processOutputCalls;
-    hr = impl_->transform->ProcessOutput(0, 1, &output, &status);
+    HRESULT hr = impl_->transform->ProcessOutput(0, 1, &output, &status);
     metrics_.lastProcessOutputHr = static_cast<std::int32_t>(hr);
     metrics_.lastProcessOutputStatus = status;
     if (hr == MF_E_TRANSFORM_NEED_MORE_INPUT) {
       ++metrics_.processOutputNeedMoreInput;
-      break;
+      return true;
     }
     if (hr == MF_E_TRANSFORM_STREAM_CHANGE) {
       ++metrics_.processOutputStreamChanges;
@@ -440,6 +412,48 @@ bool MediaFoundationH264Decoder::SubmitAccessUnit(
     ++metrics_.outputFrames;
     if (frameHandler_) frameHandler_(std::move(frame));
   }
+  return true;
+}
+
+bool MediaFoundationH264Decoder::SubmitAccessUnit(
+    const std::vector<std::uint8_t>& accessUnit, std::int64_t timestamp100ns,
+    std::int64_t duration100ns) {
+  if (!started_ || !impl_ || !impl_->transform) return Fail("decoder is not started");
+  if (accessUnit.empty() || accessUnit.size() > std::numeric_limits<DWORD>::max()) {
+    return Fail("empty or oversized H264 access unit");
+  }
+
+  ComPtr<IMFMediaBuffer> buffer;
+  HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(accessUnit.size()), &buffer);
+  BYTE* destination = nullptr;
+  DWORD maxLength = 0;
+  DWORD currentLength = 0;
+  if (SUCCEEDED(hr)) hr = buffer->Lock(&destination, &maxLength, &currentLength);
+  if (SUCCEEDED(hr)) {
+    std::memcpy(destination, accessUnit.data(), accessUnit.size());
+    hr = buffer->Unlock();
+  }
+  if (SUCCEEDED(hr)) hr = buffer->SetCurrentLength(static_cast<DWORD>(accessUnit.size()));
+  ComPtr<IMFSample> sample;
+  if (SUCCEEDED(hr)) hr = MFCreateSample(&sample);
+  if (SUCCEEDED(hr)) hr = sample->AddBuffer(buffer.Get());
+  if (SUCCEEDED(hr)) hr = sample->SetSampleTime(timestamp100ns);
+  if (SUCCEEDED(hr)) hr = sample->SetSampleDuration(duration100ns);
+  if (FAILED(hr)) return Fail(HresultText("create H264 input sample", hr));
+
+  hr = impl_->transform->ProcessInput(0, sample.Get(), 0);
+  if (hr == MF_E_NOTACCEPTING) {
+    // Some Windows H.264 MFTs apply back-pressure until pending output is
+    // drained. Treat this as a recoverable queue condition, not a fatal
+    // decode error, and retry the same input after draining output.
+    if (!DrainOutput()) return false;
+    hr = impl_->transform->ProcessInput(0, sample.Get(), 0);
+  }
+  if (FAILED(hr)) return Fail(HresultText("H264 decoder ProcessInput", hr));
+  ++metrics_.inputAccessUnits;
+  impl_->lastInputTimestamp = timestamp100ns;
+  impl_->lastInputDuration = duration100ns;
+  if (!DrainOutput()) return false;
   lastError_.clear();
   return true;
 }

@@ -14,6 +14,12 @@ double EstimateFpsFromTimestamps(std::uint64_t frameCount,
                                  std::int64_t firstTimestamp100ns,
                                  std::int64_t lastTimestamp100ns);
 
+// Keeps the Virtual Camera IPC contract stable when a decoder or browser
+// encoder changes the coded/display size. Exact target frames are returned
+// without a copy; mismatched valid NV12 frames are scaled into target format.
+bool NormalizeNv12Frame(const Nv12Frame& input, std::uint32_t targetWidth,
+                        std::uint32_t targetHeight, Nv12Frame* output);
+
 struct ReceiverMediaPipelineConfig {
   H264DecoderConfig decoder;
   std::wstring mappingName = kFrameMappingName;
@@ -29,6 +35,11 @@ struct ReceiverMediaPipelineMetrics {
   double decodedFps = 0.0;
   double publishedFps = 0.0;
   std::uint64_t publishErrors = 0;
+  std::uint64_t normalizedFrames = 0;
+  std::uint64_t normalizationErrors = 0;
+  std::uint32_t publishedWidth = 0;
+  std::uint32_t publishedHeight = 0;
+  std::uint32_t publishedStride = 0;
   std::int64_t lastTimestamp100ns = 0;
   bool decoderStarted = false;
   bool publisherStarted = false;

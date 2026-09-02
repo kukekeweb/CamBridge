@@ -1,6 +1,7 @@
 #include "receiver_media_pipeline.h"
 
 #include <limits>
+#include <cstring>
 #include <utility>
 
 namespace cambridge::native {
@@ -10,6 +11,12 @@ constexpr std::int64_t k100nsPerSecond = 10000000;
 
 bool ValidClockRate(std::uint32_t value) { return value > 0; }
 
+bool ValidNv12Frame(const Nv12Frame& frame) {
+  return frame.width > 0 && frame.height > 0 && (frame.width % 2) == 0 &&
+         (frame.height % 2) == 0 && frame.stride >= frame.width &&
+         frame.bytes.size() >= static_cast<std::size_t>(frame.stride) * frame.height * 3 / 2;
+}
+
 std::int64_t RtpTo100ns(std::uint32_t timestamp, std::uint32_t firstTimestamp,
                         std::uint32_t clockRate) {
   const std::uint32_t delta = timestamp - firstTimestamp;
@@ -18,6 +25,66 @@ std::int64_t RtpTo100ns(std::uint32_t timestamp, std::uint32_t firstTimestamp,
 }
 
 }  // namespace
+
+bool NormalizeNv12Frame(const Nv12Frame& input, std::uint32_t targetWidth,
+                        std::uint32_t targetHeight, Nv12Frame* output) {
+  if (output == nullptr || targetWidth == 0 || targetHeight == 0 ||
+      (targetWidth % 2) != 0 || (targetHeight % 2) != 0 || !ValidNv12Frame(input)) {
+    return false;
+  }
+
+  if (input.width == targetWidth && input.height == targetHeight &&
+      input.stride == targetWidth &&
+      input.bytes.size() >= static_cast<std::size_t>(targetWidth) * targetHeight * 3 / 2) {
+    *output = input;
+    return true;
+  }
+
+  Nv12Frame result;
+  result.width = targetWidth;
+  result.height = targetHeight;
+  result.stride = targetWidth;
+  result.timestamp100ns = input.timestamp100ns;
+  result.sequence = input.sequence;
+  const std::size_t targetLumaBytes = static_cast<std::size_t>(targetWidth) * targetHeight;
+  result.bytes.resize(targetLumaBytes + targetLumaBytes / 2);
+
+  const auto* sourceY = input.bytes.data();
+  auto* destinationY = result.bytes.data();
+  for (std::uint32_t y = 0; y < targetHeight; ++y) {
+    const std::uint32_t sourceYRow =
+        static_cast<std::uint64_t>(y) * input.height / targetHeight;
+    for (std::uint32_t x = 0; x < targetWidth; ++x) {
+      const std::uint32_t sourceX =
+          static_cast<std::uint64_t>(x) * input.width / targetWidth;
+      destinationY[static_cast<std::size_t>(y) * targetWidth + x] =
+          sourceY[static_cast<std::size_t>(sourceYRow) * input.stride + sourceX];
+    }
+  }
+
+  const auto* sourceUv = input.bytes.data() + static_cast<std::size_t>(input.stride) * input.height;
+  auto* destinationUv = result.bytes.data() + targetLumaBytes;
+  const std::uint32_t targetChromaHeight = targetHeight / 2;
+  const std::uint32_t targetChromaWidth = targetWidth / 2;
+  const std::uint32_t sourceChromaHeight = input.height / 2;
+  const std::uint32_t sourceChromaWidth = input.width / 2;
+  for (std::uint32_t y = 0; y < targetChromaHeight; ++y) {
+    const std::uint32_t sourceYRow =
+        static_cast<std::uint64_t>(y) * sourceChromaHeight / targetChromaHeight;
+    for (std::uint32_t x = 0; x < targetChromaWidth; ++x) {
+      const std::uint32_t sourceX =
+          static_cast<std::uint64_t>(x) * sourceChromaWidth / targetChromaWidth;
+      const std::size_t sourceOffset = static_cast<std::size_t>(sourceYRow) * input.stride +
+                                       static_cast<std::size_t>(sourceX) * 2;
+      const std::size_t destinationOffset = static_cast<std::size_t>(y) * targetWidth +
+                                            static_cast<std::size_t>(x) * 2;
+      destinationUv[destinationOffset] = sourceUv[sourceOffset];
+      destinationUv[destinationOffset + 1] = sourceUv[sourceOffset + 1];
+    }
+  }
+  *output = std::move(result);
+  return true;
+}
 
 double EstimateFpsFromTimestamps(std::uint64_t frameCount,
                                  std::int64_t firstTimestamp100ns,
@@ -117,7 +184,21 @@ void ReceiverMediaPipeline::OnDecodedFrame(Nv12Frame frame) {
   metrics_.lastTimestamp100ns = frame.timestamp100ns;
   metrics_.decodedFps = EstimateFpsFromTimestamps(
       metrics_.decodedFrames, firstDecodedTimestamp100ns_, frame.timestamp100ns);
-  if (publisher_.Publish(frame)) {
+  Nv12Frame publishFrame;
+  if (!NormalizeNv12Frame(frame, config_.decoder.width, config_.decoder.height,
+                          &publishFrame)) {
+    ++metrics_.normalizationErrors;
+    lastError_ = "decoded NV12 frame could not be normalized to Virtual Camera format";
+    return;
+  }
+  if (publishFrame.width != frame.width || publishFrame.height != frame.height ||
+      publishFrame.stride != frame.stride) {
+    ++metrics_.normalizedFrames;
+  }
+  metrics_.publishedWidth = publishFrame.width;
+  metrics_.publishedHeight = publishFrame.height;
+  metrics_.publishedStride = publishFrame.stride;
+  if (publisher_.Publish(publishFrame)) {
     if (metrics_.publishedFrames == 0) {
       firstPublishedTimestamp100ns_ = frame.timestamp100ns;
     }
