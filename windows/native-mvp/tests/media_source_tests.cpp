@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <mfapi.h>
+#include <mferror.h>
 #include <mfidl.h>
 #include <mfobjects.h>
 #include <ks.h>
@@ -29,6 +30,28 @@ int wmain(int argc, wchar_t** argv) {
   if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) return 1;
   hr = MFStartup(MF_VERSION);
   if (FAILED(hr)) {
+    if (comInitialized) CoUninitialize();
+    return 1;
+  }
+  cambridge::native::SharedFrameProducer producer;
+  if (!producer.Create()) {
+    std::wcerr << L"Synthetic producer setup failed\n";
+    MFShutdown();
+    if (comInitialized) CoUninitialize();
+    return 1;
+  }
+  cambridge::native::Nv12Frame syntheticFrame;
+  syntheticFrame.width = 1920;
+  syntheticFrame.height = 1080;
+  syntheticFrame.stride = 1920;
+  syntheticFrame.timestamp100ns = 0;
+  syntheticFrame.bytes.assign(static_cast<std::size_t>(syntheticFrame.stride) *
+                                  syntheticFrame.height * 3 / 2,
+                              42);
+  if (!producer.Publish(syntheticFrame)) {
+    std::wcerr << L"Synthetic producer initial publish failed\n";
+    producer.Close();
+    MFShutdown();
     if (comInitialized) CoUninitialize();
     return 1;
   }
@@ -277,9 +300,19 @@ int wmain(int argc, wchar_t** argv) {
     return 1;
   }
   ComPtr<IMFMediaEvent> streamEvent;
-  if (FAILED(hr = mediaStream->RequestSample(nullptr)) ||
-      FAILED(hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamEvent))) {
+  if (FAILED(hr = mediaStream->RequestSample(nullptr))) {
     std::wcerr << L"Media Stream sample request failed: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  for (int attempt = 0; attempt < 2000; ++attempt) {
+    hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamEvent);
+    if (SUCCEEDED(hr)) break;
+    if (hr != MF_E_NO_EVENTS_AVAILABLE) break;
+    Sleep(1);
+  }
+  if (FAILED(hr)) {
+    std::wcerr << L"Media Stream sample event timeout/failure: 0x" << std::hex
                << static_cast<unsigned long>(hr) << L"\n";
     return 1;
   }
@@ -323,6 +356,45 @@ int wmain(int argc, wchar_t** argv) {
   if (sampleBytes != expectedBytes) {
     std::wcerr << L"Media Stream sample size does not match selected layout: expected="
                << expectedBytes << L" actual=" << sampleBytes << L"\n";
+    return 1;
+  }
+
+  // A second request must wait for a new producer sequence rather than
+  // immediately creating a duplicate sample from the latest frame.
+  streamEvent.Reset();
+  if (FAILED(hr = mediaStream->RequestSample(nullptr))) {
+    std::wcerr << L"Second media stream sample request failed: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  Sleep(50);
+  hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamEvent);
+  if (hr != MF_E_NO_EVENTS_AVAILABLE) {
+    std::wcerr << L"Media Stream delivered a duplicate without a new IPC frame: 0x"
+               << std::hex << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  if (!producer.Publish(syntheticFrame)) {
+    std::wcerr << L"Synthetic producer second publish failed\n";
+    return 1;
+  }
+  streamEvent.Reset();
+  for (int attempt = 0; attempt < 2000; ++attempt) {
+    hr = mediaStream->GetEvent(MF_EVENT_FLAG_NO_WAIT, &streamEvent);
+    if (SUCCEEDED(hr)) break;
+    if (hr != MF_E_NO_EVENTS_AVAILABLE) break;
+    Sleep(1);
+  }
+  if (FAILED(hr)) {
+    std::wcerr << L"Second media stream sample event timeout/failure: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
+    return 1;
+  }
+  MediaEventType secondStreamEventType = MEUnknown;
+  if (FAILED(hr = streamEvent->GetType(&secondStreamEventType)) ||
+      secondStreamEventType != MEMediaSample) {
+    std::wcerr << L"Second media stream event is not a sample: 0x" << std::hex
+               << static_cast<unsigned long>(hr) << L"\n";
     return 1;
   }
   std::wcout << L"Media Source test: types=" << typeCount

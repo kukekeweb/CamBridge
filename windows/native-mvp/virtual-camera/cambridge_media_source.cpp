@@ -196,6 +196,89 @@ HRESULT CamBridgeClassFactory::QueryInterface(REFIID iid, void** result) {
   return hr;
 }
 
+CamBridgeMediaStream::~CamBridgeMediaStream() { StopSamplePump(); }
+
+void CamBridgeMediaStream::StopSamplePump() {
+  {
+    std::lock_guard lock(mutex_);
+    samplePumpStop_ = true;
+    pendingSampleRequest_ = false;
+    pendingSampleToken_.Reset();
+  }
+  samplePumpCondition_.notify_all();
+  if (samplePump_.joinable()) samplePump_.join();
+}
+
+void CamBridgeMediaStream::SamplePumpLoop() {
+  for (;;) {
+    std::unique_lock lock(mutex_);
+    samplePumpCondition_.wait(lock, [this] {
+      return samplePumpStop_ || pendingSampleRequest_;
+    });
+    if (samplePumpStop_) return;
+
+    while (!samplePumpStop_ && pendingSampleRequest_) {
+      if (state_ != MF_STREAM_STATE_RUNNING) {
+        pendingSampleRequest_ = false;
+        pendingSampleToken_.Reset();
+        break;
+      }
+
+      Microsoft::WRL::ComPtr<IMFSample> sample;
+      const HRESULT createHr = CreateSample(&sample, true);
+      if (createHr == MF_E_NOTACCEPTING) {
+        lock.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        lock.lock();
+        continue;
+      }
+
+      Microsoft::WRL::ComPtr<IUnknown> token = pendingSampleToken_;
+      pendingSampleRequest_ = false;
+      pendingSampleToken_.Reset();
+      if (FAILED(createHr)) {
+        LogControlEvent(L"CamBridgeMediaStream", L"SamplePump.CreateSample", createHr);
+        MaybeLogPacingSummaryLocked(L"PacingSummary", createHr, false);
+        break;
+      }
+      const HRESULT tokenHr = token != nullptr
+          ? sample->SetUnknown(MFSampleExtension_Token, token.Get())
+          : S_OK;
+      if (FAILED(tokenHr)) {
+        LogControlEvent(L"CamBridgeMediaStream", L"SamplePump.SetToken", tokenHr);
+        MaybeLogPacingSummaryLocked(L"PacingSummary", tokenHr, false);
+        break;
+      }
+      const HRESULT queueHr = events_->QueueEventParamUnk(MEMediaSample, GUID_NULL,
+                                                            S_OK, sample.Get());
+      if (SUCCEEDED(queueHr)) {
+        ++requestSampleSuccessCount_;
+        ++samplesDelivered_;
+        ++pacingMediaSampleQueued_;
+        ++pacingMediaSampleQueuedTotal_;
+        if (samplesDelivered_ <= 3) {
+          LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEMediaSample,
+                        queueHr, S_OK, GUID_NULL, true, sample.Get(), 0,
+                        lastSequence_, S_OK);
+          LogSampleEvent(L"CamBridgeMediaStream", L"SampleDelivered", queueHr,
+                         samplesDelivered_, lastSequence_, lastSampleTimestamp100ns_,
+                         static_cast<DWORD>(static_cast<std::size_t>(stride_) *
+                                             height_ * 3 / 2));
+        }
+      } else {
+        ++requestSampleFailureCount_;
+        LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEMediaSample,
+                      queueHr, S_OK, GUID_NULL, true, sample.Get(), 0,
+                      lastSequence_, S_OK);
+        LogControlEvent(L"CamBridgeMediaStream", L"SamplePump.QueueEvent", queueHr);
+      }
+      MaybeLogPacingSummaryLocked(L"PacingSummary", queueHr, false);
+      break;
+    }
+    if (samplePumpStop_) return;
+  }
+}
+
 HRESULT CamBridgeMediaStream::Initialize(CamBridgeMediaSource* parent) {
   LogControlEvent(L"CamBridgeMediaStream", L"Initialize.begin", S_OK);
   if (parent == nullptr) return E_INVALIDARG;
@@ -333,6 +416,7 @@ void CamBridgeMediaStream::MaybeLogPacingSummaryLocked(const wchar_t* eventName,
 HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   LogControlEvent(L"CamBridgeMediaStream", L"Start.begin", S_OK);
   if (mediaType == nullptr) return E_INVALIDARG;
+  StopSamplePump();
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
@@ -368,16 +452,34 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   hr = events_->QueueEventParamVar(MEStreamStarted, GUID_NULL, S_OK, nullptr);
   LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEStreamStarted, hr, S_OK,
                 GUID_NULL, false, nullptr, 0, 0, S_OK);
+  if (SUCCEEDED(hr)) {
+    samplePumpStop_ = false;
+    try {
+      samplePump_ = std::thread(&CamBridgeMediaStream::SamplePumpLoop, this);
+    } catch (...) {
+      samplePumpStop_ = true;
+      state_ = MF_STREAM_STATE_STOPPED;
+      hr = E_OUTOFMEMORY;
+    }
+  }
   LogControlEvent(L"CamBridgeMediaStream", L"Start.end", hr);
   return hr;
 }
 
 HRESULT CamBridgeMediaStream::Stop(bool sendEvent) {
   LogControlEvent(L"CamBridgeMediaStream", L"Stop.begin", S_OK);
+  {
+    std::lock_guard lock(mutex_);
+    HRESULT hr = CheckState();
+    if (FAILED(hr)) return hr;
+    state_ = MF_STREAM_STATE_STOPPED;
+    pendingSampleRequest_ = false;
+    pendingSampleToken_.Reset();
+  }
+  StopSamplePump();
   std::lock_guard lock(mutex_);
   HRESULT hr = CheckState();
   if (FAILED(hr)) return hr;
-  state_ = MF_STREAM_STATE_STOPPED;
   MaybeLogPacingSummaryLocked(L"Stop.pacing-summary", S_OK, true);
   if (sendEvent) {
     hr = events_->QueueEventParamVar(MEStreamStopped, GUID_NULL, S_OK, nullptr);
@@ -390,8 +492,16 @@ HRESULT CamBridgeMediaStream::Stop(bool sendEvent) {
 
 HRESULT CamBridgeMediaStream::Shutdown() {
   LogControlEvent(L"CamBridgeMediaStream", L"Shutdown.begin", S_OK);
+  {
+    std::lock_guard lock(mutex_);
+    if (shutdown_) return S_OK;
+    shutdown_ = true;
+    state_ = MF_STREAM_STATE_STOPPED;
+    pendingSampleRequest_ = false;
+    pendingSampleToken_.Reset();
+  }
+  StopSamplePump();
   std::lock_guard lock(mutex_);
-  if (shutdown_) return S_OK;
   MaybeLogPacingSummaryLocked(L"Shutdown.pacing-summary", S_OK, true);
   LogStreamSummary(L"CamBridgeMediaStream", L"Shutdown.summary", S_OK,
                    requestSampleCount_, samplesProduced_, samplesDelivered_, lastSequence_);
@@ -399,8 +509,6 @@ HRESULT CamBridgeMediaStream::Shutdown() {
                           requestSampleCount_, requestSampleSuccessCount_,
                           requestSampleFailureCount_, samplesProduced_, samplesDelivered_,
                           firstRequestUtc100ns_, lastSequence_);
-  shutdown_ = true;
-  state_ = MF_STREAM_STATE_STOPPED;
   parent_.Reset();
   descriptor_.Reset();
   attributes_.Reset();
@@ -508,9 +616,17 @@ HRESULT CamBridgeMediaStream::GetStreamDescriptor(IMFStreamDescriptor** descript
   return descriptor_.CopyTo(descriptor);
 }
 
-HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
+HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample, bool requireNewIpcFrame) {
   if (sample == nullptr) return E_POINTER;
   *sample = nullptr;
+  if (requireNewIpcFrame) {
+    if (!reader_.IsOpen()) return MF_E_NOTACCEPTING;
+    SharedFrameStatus available;
+    if (!reader_.GetStatus(&available) || available.publishedSequence == 0 ||
+        available.publishedSequence == available.lastReadSequence) {
+      return MF_E_NOTACCEPTING;
+    }
+  }
   const auto bytes = static_cast<std::size_t>(stride_) * height_ * 3 / 2;
   Microsoft::WRL::ComPtr<IMFSample> result;
   HRESULT hr = S_OK;
@@ -567,6 +683,12 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
     LogIpcStatus(L"CamBridgeMediaStream", L"CreateSample.ipc", readLatest ? S_OK : S_FALSE,
                  ipcStatus.mappingOpen, ipcStatus.openError, ipcStatus.producerState,
                  ipcStatus.publishedSequence, ipcStatus.lastReadSequence);
+  }
+  if (requireNewIpcFrame && !readLatest) {
+    const HRESULT unlockHr = buffer->Unlock();
+    if (FAILED(unlockHr)) LogAllocatorState(L"CreateSample.wait.Unlock", unlockHr,
+                                             mediaType_.Get());
+    return MF_E_NOTACCEPTING;
   }
   if (readLatest) {
     ++pacingIpcNewFrames_;
@@ -674,41 +796,27 @@ HRESULT CamBridgeMediaStream::RequestSample(IUnknown* token) {
     }
     return MF_E_INVALIDREQUEST;
   }
+
+  // This is a live latest-frame source, not a pull queue. Keep at most one
+  // outstanding request; the pump fulfills it only after a new IPC sequence
+  // is available. This prevents RequestSample call rate from becoming the
+  // sample clock and avoids unbounded duplicate samples/backlog.
+  if (pendingSampleRequest_) {
+    ++requestSampleFailureCount_;
+    if (requestIndex <= 3) {
+      LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.pending",
+                      MF_E_NOTACCEPTING);
+    }
+    MaybeLogPacingSummaryLocked(L"PacingSummary", MF_E_NOTACCEPTING, false);
+    return MF_E_NOTACCEPTING;
+  }
   if (!reader_.IsOpen()) (void)reader_.Open();
-  Microsoft::WRL::ComPtr<IMFSample> sample;
-  if (FAILED(hr = CreateSample(&sample))) {
-    ++requestSampleFailureCount_;
-    if (requestIndex <= 3) LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.CreateSample", hr);
-    return hr;
-  }
-  if (token != nullptr && FAILED(hr = sample->SetUnknown(MFSampleExtension_Token, token))) {
-    ++requestSampleFailureCount_;
-    if (requestIndex <= 3) LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.SetToken", hr);
-    return hr;
-  }
-  hr = events_->QueueEventParamUnk(MEMediaSample, GUID_NULL, S_OK, sample.Get());
-  if (SUCCEEDED(hr)) {
-    ++requestSampleSuccessCount_;
-    ++samplesDelivered_;
-    ++pacingMediaSampleQueued_;
-    ++pacingMediaSampleQueuedTotal_;
-    if (requestIndex <= 3) {
-      LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEMediaSample, hr, S_OK,
-                    GUID_NULL, true, sample.Get(), 0, lastSequence_, S_OK);
-      LogSampleEvent(L"CamBridgeMediaStream", L"SampleDelivered", hr, samplesDelivered_,
-                     lastSequence_, lastSampleTimestamp100ns_,
-                     static_cast<DWORD>(static_cast<std::size_t>(stride_) * height_ * 3 / 2));
-    }
-  } else {
-    ++requestSampleFailureCount_;
-    if (requestIndex <= 3) {
-      LogMediaEvent(L"CamBridgeMediaStream", L"QueueEvent", MEMediaSample, hr, S_OK,
-                    GUID_NULL, true, sample.Get(), 0, lastSequence_, S_OK);
-      LogControlEvent(L"CamBridgeMediaStream", L"RequestSample.QueueEvent", hr);
-    }
-  }
-  MaybeLogPacingSummaryLocked(L"PacingSummary", hr, false);
-  return hr;
+  pendingSampleRequest_ = true;
+  pendingSampleToken_.Reset();
+  if (token != nullptr) pendingSampleToken_ = token;
+  MaybeLogPacingSummaryLocked(L"PacingSummary", S_OK, false);
+  samplePumpCondition_.notify_one();
+  return S_OK;
 }
 
 HRESULT CamBridgeMediaStream::SetStreamState(MF_STREAM_STATE state) {

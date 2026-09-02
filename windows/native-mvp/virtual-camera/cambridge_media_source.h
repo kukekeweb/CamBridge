@@ -14,7 +14,9 @@
 
 #include <cstdint>
 #include <chrono>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 
 namespace cambridge::native {
 
@@ -46,6 +48,7 @@ class CamBridgeMediaStream final
 
  public:
   CamBridgeMediaStream() = default;
+  ~CamBridgeMediaStream();
 
   IFACEMETHOD(QueryInterface)(REFIID, void**) override;
 
@@ -74,7 +77,9 @@ class CamBridgeMediaStream final
 
  private:
   HRESULT CheckState() const;
-  HRESULT CreateSample(IMFSample** sample);
+  HRESULT CreateSample(IMFSample** sample, bool requireNewIpcFrame = false);
+  void StopSamplePump();
+  void SamplePumpLoop();
   void LogAllocatorState(const wchar_t* eventName, HRESULT hr,
                          IMFMediaType* mediaType = nullptr) const;
   void ResetPacingDiagnosticsLocked();
@@ -130,6 +135,11 @@ class CamBridgeMediaStream final
   std::uint32_t lastIpcStride_ = 0;
   std::uint32_t lastIpcPayloadBytes_ = 0;
   std::uint32_t lastCopiedBytes_ = 0;
+  std::condition_variable samplePumpCondition_;
+  std::thread samplePump_;
+  bool samplePumpStop_ = true;
+  bool pendingSampleRequest_ = false;
+  Microsoft::WRL::ComPtr<IUnknown> pendingSampleToken_;
 };
 
 class CamBridgeMediaSource final
