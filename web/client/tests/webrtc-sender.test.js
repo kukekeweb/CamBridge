@@ -172,6 +172,19 @@ test("does not block Offer on Safari sender parameter tuning", async () => {
   FakePeerConnection.senderSetParameters = null;
 });
 
+test("cleans up the signaling socket when Offer creation fails", async () => {
+  const sender = makeSender();
+  const connectPromise = sender.connect();
+  const peer = FakePeerConnection.instances[0];
+  const socket = FakeWebSocket.instances[0];
+  peer.createOffer = () => Promise.reject(new Error("Offer作成テストエラー"));
+  socket.open();
+  await assert.rejects(connectPromise, /Offer作成テストエラー/);
+  assert.equal(sender.websocket, null);
+  assert.equal(sender.peerConnection, null);
+  assert.equal(socket.readyState, 3);
+});
+
 test("configures the sender without failing when degradationPreference is unsupported", async () => {
   let calls = 0;
   const sender = {

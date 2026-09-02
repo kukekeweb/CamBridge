@@ -31,6 +31,7 @@ function peerKey(endpoint) {
 
 export function createSignalingBroker(options = {}) {
   const maxMessageBytes = options.maxMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES;
+  const replaceBrowser = options.replaceBrowser === true;
   if (!Number.isInteger(maxMessageBytes) || maxMessageBytes < 1) {
     throw new RangeError("maxMessageBytes must be a positive integer");
   }
@@ -76,13 +77,26 @@ export function createSignalingBroker(options = {}) {
     if (record.role !== null && (record.role !== role || record.sessionId !== requestedSessionId)) {
       return resultError("hello_already_bound");
     }
+    const current = role === "browser" ? browser : native;
+    const canReplaceBrowser = current !== null && current.endpoint !== record.endpoint &&
+      role === "browser" && replaceBrowser && (native === null || nativeAuto);
     const effectiveSessionId = autoNative ? (sessionId ?? AUTO_SESSION_ID) : requestedSessionId;
-    if (sessionId !== null && sessionId !== effectiveSessionId) {
+    if (sessionId !== null && sessionId !== effectiveSessionId && !canReplaceBrowser) {
       return resultError("session_mismatch");
     }
-    const current = role === "browser" ? browser : native;
     if (current !== null && current.endpoint !== record.endpoint) {
-      return resultError("role_in_use");
+      if (!canReplaceBrowser) return resultError("role_in_use");
+      try {
+        current.endpoint.send(JSON.stringify({
+          version: 1,
+          type: "close",
+          sessionId: current.sessionId,
+          reason: "replaced_by_new_browser",
+        }));
+      } catch {
+        // The endpoint may already be closing; detach it below regardless.
+      }
+      detach(current.endpoint);
     }
     if (!autoNative) sessionId = requestedSessionId;
     record.role = role;

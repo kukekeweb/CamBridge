@@ -68,6 +68,28 @@ test("rejects a second browser or native endpoint and bounds malformed messages"
   assert.deepEqual(broker.handleMessage(browser, "x".repeat(65)), { ok: false, code: "message_too_large" });
 });
 
+test("server-mode browser replacement closes a stale browser before rebinding", () => {
+  const broker = createSignalingBroker({ replaceBrowser: true });
+  const browser = peer("browser-1");
+  const browser2 = peer("browser-2");
+  const native = peer("native-1");
+  broker.attach(browser);
+  broker.attach(browser2);
+  broker.attach(native);
+
+  assert.deepEqual(send(broker, native, { type: "hello", role: "native", sessionId: "auto" }), { ok: true });
+  assert.deepEqual(send(broker, browser, { type: "hello", role: "browser", sessionId: "first" }), { ok: true });
+  assert.deepEqual(send(broker, browser2, { type: "hello", role: "browser", sessionId: "second" }), { ok: true });
+  assert.deepEqual(browser.sent.at(-1), {
+    version: 1,
+    type: "close",
+    sessionId: "first",
+    reason: "replaced_by_new_browser",
+  });
+  assert.equal(broker.snapshot().browserConnected, true);
+  assert.equal(broker.snapshot().nativeConnected, true);
+});
+
 test("allows a fresh session after both endpoints detach", () => {
   const broker = createSignalingBroker();
   const browser = peer("browser-1");

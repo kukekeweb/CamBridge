@@ -205,6 +205,7 @@ function createStage1HttpsServer({ pfx, passphrase, webRoot }) {
   });
   const signaling = attachSignalingWebSocket(server, {
     path: "/signaling",
+    replaceBrowser: true,
     log: (message) => console.log(`[signaling] ${message}`),
   });
   return { server, signaling };

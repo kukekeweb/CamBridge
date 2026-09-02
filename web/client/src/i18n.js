@@ -58,6 +58,14 @@ export const TEXT = Object.freeze({
   webrtcSocketError: "signaling WebSocketでエラーが発生しました",
   webrtcUnexpectedMessage: "予期しないsignaling messageです",
   webrtcSignalingError: "signalingでエラーが通知されました：{code}",
+  webrtcOfferCreateTimeout: "Offerの作成が10秒以内に完了しませんでした",
+  webrtcLocalDescriptionTimeout: "Local Descriptionの設定が10秒以内に完了しませんでした",
+  webrtcSteps: Object.freeze({
+    "offer-create-begin": "Offerを作成中",
+    "offer-created": "Offerを作成しました",
+    "local-description-begin": "Local Descriptionを設定中",
+    "local-description-set": "Local Descriptionを設定しました",
+  }),
   clipboardCopied: "● {format}をクリップボードへコピーしました",
   clipboardFailed: "クリップボードへのコピーに失敗しました：{message}",
   mismatch: "{capture}は利用できません：実際のカメラ設定が要求値と一致しません",
@@ -231,6 +239,10 @@ export function formatStabilityStatus(status) {
 
 export function formatWebRtcStatus(status) {
   if (status === "connecting") return TEXT.webrtcConnecting;
+  if (typeof status === "string" && status.startsWith("connecting:")) {
+    const step = status.slice("connecting:".length);
+    return `${TEXT.webrtcConnecting}（${TEXT.webrtcSteps[step] ?? step}）`;
+  }
   if (status === "offered") return TEXT.webrtcOffered;
   if (status === "connected") return TEXT.webrtcConnected;
   if (status === "closed" || status === "disconnected") return TEXT.webrtcClosed;

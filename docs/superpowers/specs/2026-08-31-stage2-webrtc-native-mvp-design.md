@@ -113,6 +113,13 @@ Messages are versioned and bounded. Signaling carries no video bytes. The server
 rejects a second active iPhone session in the initial MVP rather than silently
 sharing one receiver.
 
+For the single-PC/single-iPhone server mode, a newly connected browser may
+replace a stale browser WebSocket. The broker sends the old browser a versioned
+`close` message, detaches it, and binds the new session; it does not create a
+second media path or replace an explicitly bound native peer. This prevents a
+Safari tab that stopped responding before closing its socket from blocking the
+next normal connection.
+
 ## ICE and LAN security
 
 - Private IPv4 host candidates are preferred.

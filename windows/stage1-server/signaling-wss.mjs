@@ -15,7 +15,10 @@ export function attachSignalingWebSocket(server, options = {}) {
   const path = options.path ?? DEFAULT_PATH;
   const maxMessageBytes = options.maxMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES;
   const log = typeof options.log === "function" ? options.log : () => {};
-  const broker = options.broker ?? createSignalingBroker({ maxMessageBytes });
+  const broker = options.broker ?? createSignalingBroker({
+    maxMessageBytes,
+    replaceBrowser: options.replaceBrowser === true,
+  });
   const webSocketServer = new WebSocketServer({ noServer: true, maxPayload: maxMessageBytes });
 
   const onUpgrade = (request, socket, head) => {

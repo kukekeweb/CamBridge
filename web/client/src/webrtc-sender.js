@@ -3,9 +3,24 @@ import { TEXT } from "./i18n.js";
 const TARGET_WIDTH = 1920;
 const TARGET_HEIGHT = 1080;
 const TARGET_FPS = 60;
+const OPERATION_TIMEOUT_MS = 10_000;
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function withTimeout(operation, timeoutMs, timeoutMessage) {
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(operation),
+      new Promise((_, reject) => {
+        timer = globalThis.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) globalThis.clearTimeout(timer);
+  }
 }
 
 function runtimeH264Codecs(senderCapabilities) {
@@ -306,11 +321,23 @@ export class WebRtcSender {
             this.send({ type: "hello", role: "browser", sessionId: this.sessionId });
             this.lastSignalingStep = "hello-sent";
             this.lastSignalingStep = "offer-create-begin";
-            const offer = await this.peerConnection.createOffer();
+            this.emitStatus("connecting:offer-create-begin");
+            const offer = await withTimeout(
+              () => this.peerConnection.createOffer(),
+              OPERATION_TIMEOUT_MS,
+              TEXT.webrtcOfferCreateTimeout,
+            );
             this.lastSignalingStep = "offer-created";
+            this.emitStatus("connecting:offer-created");
             this.lastSignalingStep = "local-description-begin";
-            await this.peerConnection.setLocalDescription(offer);
+            this.emitStatus("connecting:local-description-begin");
+            await withTimeout(
+              () => this.peerConnection.setLocalDescription(offer),
+              OPERATION_TIMEOUT_MS,
+              TEXT.webrtcLocalDescriptionTimeout,
+            );
             this.lastSignalingStep = "local-description-set";
+            this.emitStatus("connecting:local-description-set");
             this.send({
               type: "offer",
               sessionId: this.sessionId,
@@ -335,6 +362,7 @@ export class WebRtcSender {
               });
           } catch (error) {
             this.fail(error);
+            this.resetTransport();
             rejectOnce(error);
           }
         };
