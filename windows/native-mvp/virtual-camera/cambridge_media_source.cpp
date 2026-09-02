@@ -190,6 +190,8 @@ HRESULT CamBridgeMediaStream::Start(IMFMediaType* mediaType) {
   width_ = width;
   height_ = height;
   stride_ = width;
+  lastFrame_ = {};
+  lastSequence_ = 0;
   LogAllocatorState(L"Start.allocator.before", S_OK, mediaType_.Get());
   if (!sampleAllocator_) {
     hr = MFCreateVideoSampleAllocatorEx(IID_PPV_ARGS(&sampleAllocator_));
@@ -374,10 +376,19 @@ HRESULT CamBridgeMediaStream::CreateSample(IMFSample** sample) {
                  ipcStatus.mappingOpen, ipcStatus.openError, ipcStatus.producerState,
                  ipcStatus.publishedSequence, ipcStatus.lastReadSequence);
   }
-  if (readLatest && frame.width == width_ &&
-      frame.height == height_ && frame.stride == stride_ && frame.bytes.size() == bytes) {
-    std::memcpy(data, frame.bytes.data(), bytes);
-    lastSequence_ = frame.sequence;
+  if (readLatest && frame.width == width_ && frame.height == height_ &&
+      frame.stride == stride_ && frame.bytes.size() == bytes) {
+    lastFrame_ = std::move(frame);
+    lastSequence_ = lastFrame_.sequence;
+  }
+  // SourceReader may request samples slightly faster than the producer's
+  // cadence. Reuse the most recent valid frame instead of turning a normal
+  // cadence gap into a black frame. Black is reserved for the no-frame-yet
+  // state, such as before the publisher or receiver has produced its first
+  // frame.
+  if (lastFrame_.width == width_ && lastFrame_.height == height_ &&
+      lastFrame_.stride == stride_ && lastFrame_.bytes.size() == bytes) {
+    std::memcpy(data, lastFrame_.bytes.data(), bytes);
   }
   hr = buffer->Unlock();
   if (logSampleDetails) LogAllocatorState(L"IMFMediaBuffer::Unlock", hr, mediaType_.Get());

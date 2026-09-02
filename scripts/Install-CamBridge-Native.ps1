@@ -25,6 +25,8 @@ $requiredFiles = @(
 Write-Output "Source artifact root: $SourceRoot"
 Write-Output "Install root: $InstallRoot"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
+New-Item -ItemType Directory -Path 'C:\ProgramData\CamBridge\ipc' -Force | Out-Null
+Write-Output 'IPC directory: C:\ProgramData\CamBridge\ipc'
 
 $installRootFull = [System.IO.Path]::GetFullPath($InstallRoot).TrimEnd('\') + '\'
 $publisherProcesses = @(Get-CimInstance Win32_Process -Filter "Name='cambridge_synthetic_publisher.exe'" -ErrorAction SilentlyContinue)

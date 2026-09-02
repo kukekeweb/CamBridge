@@ -9,8 +9,13 @@
 
 namespace cambridge::native {
 
-inline constexpr wchar_t kFrameMappingName[] = L"Local\\CamBridge.NativeMvp.Nv12";
-inline constexpr wchar_t kFrameReadyEventName[] = L"Local\\CamBridge.NativeMvp.Nv12.Ready";
+// The Frame Server can run outside the interactive user's session. A named
+// Local\ mapping is therefore invisible to it. The production path is a
+// file-backed mapping in ProgramData; test callers may still pass Local\
+// names and retain the named-mapping behavior.
+inline constexpr wchar_t kFrameMappingName[] =
+    L"C:\\ProgramData\\CamBridge\\ipc\\CamBridge.NativeMvp.Nv12.bin";
+inline constexpr wchar_t kFrameReadyEventName[] = L"Global\\CamBridge.NativeMvp.Nv12.Ready";
 inline constexpr std::uint32_t kFrameIpcVersion = 1;
 inline constexpr std::uint32_t kSlotCount = 2;
 inline constexpr std::uint32_t kMaxWidth = 1920;
@@ -80,6 +85,7 @@ class SharedFrameProducer {
  private:
   HANDLE mapping_ = nullptr;
   HANDLE readyEvent_ = nullptr;
+  HANDLE backingFile_ = nullptr;
   void* view_ = nullptr;
   std::size_t mappingBytes_ = 0;
 };
@@ -101,6 +107,7 @@ class SharedFrameReader {
 
  private:
   HANDLE mapping_ = nullptr;
+  HANDLE backingFile_ = nullptr;
   void* view_ = nullptr;
   std::size_t mappingBytes_ = 0;
   std::uint64_t lastSequence_ = 0;

@@ -19,6 +19,33 @@ void TestMappingSize() {
   assert(cambridge::native::SharedFrameMappingBytes() > cambridge::native::kMaxFrameBytes);
 }
 
+std::wstring UniqueFilePath() {
+  wchar_t tempPath[MAX_PATH]{};
+  const DWORD length = GetTempPathW(ARRAYSIZE(tempPath), tempPath);
+  assert(length > 0 && length < ARRAYSIZE(tempPath));
+  return std::wstring(tempPath) + L"CamBridge.FrameIpc." +
+         std::to_wstring(GetCurrentProcessId()) + L".bin";
+}
+
+void TestFileBackedMappingAndReader() {
+  const auto path = UniqueFilePath();
+  DeleteFileW(path.c_str());
+  const auto event = std::wstring(L"Local\\CamBridge.Test.Event.FileBacked.") +
+                     std::to_wstring(GetCurrentProcessId());
+  cambridge::native::SharedFrameProducer producer;
+  assert(producer.Create(path, event));
+  assert(producer.Publish(MakeFrame(9, 77)));
+  cambridge::native::SharedFrameReader reader;
+  assert(reader.Open(path));
+  cambridge::native::Nv12Frame output;
+  assert(reader.ReadLatest(output));
+  assert(output.sequence == 1);
+  assert(output.bytes.front() == 77);
+  reader.Close();
+  producer.Close();
+  DeleteFileW(path.c_str());
+}
+
 void TestLatestFrameAndMissingInitialFrame() {
   const std::wstring mapping = L"Local\\CamBridge.Test.Mapping.Latest";
   const std::wstring event = L"Local\\CamBridge.Test.Event.Latest";
@@ -98,6 +125,7 @@ void TestReaderOpenFailureKeepsDiagnosticError() {
 
 int wmain() {
   TestMappingSize();
+  TestFileBackedMappingAndReader();
   TestLatestFrameAndMissingInitialFrame();
   TestInvalidFrameIsRejected();
   TestPortraitFrameIsAccepted();

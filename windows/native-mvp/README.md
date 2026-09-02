@@ -148,6 +148,15 @@ They include DLL/class factory, QueryInterface IID/HRESULT, activation, initiali
 descriptor, allocator, Start/Stop/Shutdown events, IPC state, stream-announcement,
 RequestSample, and the first three sample summaries. They do not log every video frame.
 
+The production frame IPC uses a file-backed mapping at
+`C:\ProgramData\CamBridge\ipc\CamBridge.NativeMvp.Nv12.bin`. This is intentional:
+the Windows Frame Server may load the Media Source in another service/session, where
+the interactive user's `Local\` named mapping is not visible. The file keeps the
+latest two NV12 frames and is opened read-only by the Media Source. Its ACL grants
+Local Service read access and does not grant Everyone access. The ready notification
+uses a `Global\` event; it is only a wake-up hint and never carries frame bytes.
+Existing tests that pass explicit `Local\` names continue to use named mappings.
+
 For an isolated synthetic check, start the Publisher for a finite interval and inspect
 the shared-memory reader:
 

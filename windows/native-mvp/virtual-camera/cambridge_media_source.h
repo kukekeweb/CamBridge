@@ -78,6 +78,7 @@ class CamBridgeMediaStream final
   Microsoft::WRL::ComPtr<IMFVideoSampleAllocator> sampleAllocator_;
   const wchar_t* allocatorSource_ = L"none";
   SharedFrameReader reader_;
+  Nv12Frame lastFrame_;
   std::mutex mutex_;
   MF_STREAM_STATE state_ = MF_STREAM_STATE_STOPPED;
   bool shutdown_ = false;

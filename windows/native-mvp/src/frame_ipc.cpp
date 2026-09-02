@@ -1,7 +1,12 @@
 #include "frame_ipc.h"
 
+#include <sddl.h>
+
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
+
+#pragma comment(lib, "advapi32.lib")
 
 namespace cambridge::native {
 namespace {
@@ -30,6 +35,41 @@ bool ValidFrame(const Nv12Frame& frame) {
   return frame.bytes.size() <= kMaxFrameBytes;
 }
 
+bool IsFileBackedMapping(const std::wstring& name) {
+  return name.size() >= 3 && name[1] == L':' && name[2] == L'\\';
+}
+
+bool EnsureParentDirectory(const std::wstring& path) {
+  const auto separator = path.find_last_of(L"\\/");
+  if (separator == std::wstring::npos) return false;
+  std::error_code error;
+  std::filesystem::create_directories(path.substr(0, separator), error);
+  return !error;
+}
+
+bool ApplyIpcFileSecurity(const std::wstring& path) {
+  PSECURITY_DESCRIPTOR descriptor = nullptr;
+  // Frame Server commonly runs as Local Service. Interactive users need
+  // write access for the receiver; readers only request GENERIC_READ.
+  // Do not grant Everyone access to the frame file.
+  const wchar_t* sddl =
+      L"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;LS)(A;;GRGW;;;IU)";
+  if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+          sddl, SDDL_REVISION_1, &descriptor, nullptr)) {
+    return false;
+  }
+  const BOOL result = SetFileSecurityW(path.c_str(), DACL_SECURITY_INFORMATION, descriptor);
+  LocalFree(descriptor);
+  return result != FALSE;
+}
+
+bool EnsureFileSize(HANDLE file, std::size_t bytes) {
+  LARGE_INTEGER size{};
+  size.QuadPart = static_cast<LONGLONG>(bytes);
+  if (!SetFilePointerEx(file, size, nullptr, FILE_BEGIN)) return false;
+  return SetEndOfFile(file) != FALSE;
+}
+
 }  // namespace
 
 std::size_t SharedFrameMappingBytes() {
@@ -42,8 +82,25 @@ bool SharedFrameProducer::Create(const std::wstring& mappingName,
                                  const std::wstring& eventName) {
   Close();
   mappingBytes_ = SharedFrameMappingBytes();
-  mapping_ = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
-                                static_cast<DWORD>(mappingBytes_), mappingName.c_str());
+  if (IsFileBackedMapping(mappingName)) {
+    if (!EnsureParentDirectory(mappingName)) return false;
+    backingFile_ = CreateFileW(mappingName.c_str(), GENERIC_READ | GENERIC_WRITE | WRITE_DAC,
+                                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (backingFile_ == INVALID_HANDLE_VALUE) {
+      backingFile_ = nullptr;
+      return false;
+    }
+    if (!EnsureFileSize(backingFile_, mappingBytes_) || !ApplyIpcFileSecurity(mappingName)) {
+      Close();
+      return false;
+    }
+    mapping_ = CreateFileMappingW(backingFile_, nullptr, PAGE_READWRITE, 0,
+                                  static_cast<DWORD>(mappingBytes_), nullptr);
+  } else {
+    mapping_ = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0,
+                                  static_cast<DWORD>(mappingBytes_), mappingName.c_str());
+  }
   if (mapping_ == nullptr) {
     return false;
   }
@@ -105,6 +162,10 @@ void SharedFrameProducer::Close() {
     CloseHandle(mapping_);
     mapping_ = nullptr;
   }
+  if (backingFile_ != nullptr) {
+    CloseHandle(backingFile_);
+    backingFile_ = nullptr;
+  }
   mappingBytes_ = 0;
 }
 
@@ -113,9 +174,25 @@ SharedFrameReader::~SharedFrameReader() { Close(); }
 bool SharedFrameReader::Open(const std::wstring& mappingName) {
   Close();
   lastOpenError_ = ERROR_SUCCESS;
-  mapping_ = OpenFileMappingW(FILE_MAP_READ, FALSE, mappingName.c_str());
+  if (IsFileBackedMapping(mappingName)) {
+    backingFile_ = CreateFileW(mappingName.c_str(), GENERIC_READ,
+                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                               nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (backingFile_ == INVALID_HANDLE_VALUE) {
+      lastOpenError_ = GetLastError();
+      backingFile_ = nullptr;
+      return false;
+    }
+    mapping_ = CreateFileMappingW(backingFile_, nullptr, PAGE_READONLY, 0, 0, nullptr);
+  } else {
+    mapping_ = OpenFileMappingW(FILE_MAP_READ, FALSE, mappingName.c_str());
+  }
   if (mapping_ == nullptr) {
     lastOpenError_ = GetLastError();
+    if (backingFile_ != nullptr) {
+      CloseHandle(backingFile_);
+      backingFile_ = nullptr;
+    }
     return false;
   }
   mappingBytes_ = SharedFrameMappingBytes();
@@ -201,6 +278,10 @@ void SharedFrameReader::Close() {
   if (mapping_ != nullptr) {
     CloseHandle(mapping_);
     mapping_ = nullptr;
+  }
+  if (backingFile_ != nullptr) {
+    CloseHandle(backingFile_);
+    backingFile_ = nullptr;
   }
   mappingBytes_ = 0;
   lastSequence_ = 0;

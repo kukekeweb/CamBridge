@@ -18,7 +18,7 @@ add_library(cambridge_frame_ipc STATIC
 )
 target_include_directories(cambridge_frame_ipc PUBLIC include)
 target_compile_definitions(cambridge_frame_ipc PUBLIC UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(cambridge_frame_ipc PUBLIC kernel32)
+target_link_libraries(cambridge_frame_ipc PUBLIC kernel32 advapi32)
 
 add_library(cambridge_media_source SHARED
   virtual-camera/diagnostic_log.cpp

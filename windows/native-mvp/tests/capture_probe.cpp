@@ -31,6 +31,9 @@ struct SampleObservation {
   LONGLONG sampleTimestamp100ns = 0;
   LONGLONG sampleDuration100ns = 0;
   DWORD bufferBytes = 0;
+  BYTE lumaMin = 255;
+  BYTE lumaMax = 0;
+  DWORD lumaBytes = 0;
 };
 
 std::wstring SafeDeviceName(const WCHAR* name) {
@@ -335,12 +338,27 @@ int RunCaptureChild(const std::wstring& diagnosticFile) {
             ComPtr<IMFMediaBuffer> buffer;
             if (SUCCEEDED(sample->GetBufferByIndex(0, &buffer))) {
               (void)buffer->GetCurrentLength(&observation.bufferBytes);
+              BYTE* data = nullptr;
+              DWORD maxLength = 0;
+              DWORD currentLength = 0;
+              if (SUCCEEDED(buffer->Lock(&data, &maxLength, &currentLength)) && data != nullptr) {
+                const DWORD lumaBytes = std::min<DWORD>(currentLength, 1920u * 1080u);
+                for (DWORD index = 0; index < lumaBytes; ++index) {
+                  observation.lumaMin = std::min(observation.lumaMin, data[index]);
+                  observation.lumaMax = std::max(observation.lumaMax, data[index]);
+                }
+                observation.lumaBytes = lumaBytes;
+                (void)buffer->Unlock();
+              }
             }
             std::wcout << L"    sample[" << frames << L"] status=0x" << std::hex
                        << static_cast<unsigned long>(observation.status) << std::dec
                        << L" timestamp=" << observation.sampleTimestamp100ns
                        << L" duration=" << observation.sampleDuration100ns
-                       << L" bufferBytes=" << observation.bufferBytes << L"\n";
+                       << L" bufferBytes=" << observation.bufferBytes
+                       << L" lumaBytes=" << observation.lumaBytes
+                       << L" lumaMin=" << static_cast<unsigned>(observation.lumaMin)
+                       << L" lumaMax=" << static_cast<unsigned>(observation.lumaMax) << L"\n";
           }
         }
         PrintHr(L"    Last ReadSample", hr);
