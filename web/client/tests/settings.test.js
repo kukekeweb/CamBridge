@@ -6,6 +6,7 @@ import {
   createOutputPlan,
   createSettings,
   resolveCaptureOrientation,
+  shouldRestartCaptureForOrientationChange,
 } from "../src/settings.js";
 
 test("buildExactVideoConstraints uses exact resolution and frame rate", async () => {
@@ -78,4 +79,22 @@ test("orientation is explicit and does not follow the viewport", () => {
     height: { exact: 1080 },
     frameRate: { exact: 60 },
   });
+});
+
+test("orientation selection requests a reacquire only for an active capture", () => {
+  assert.equal(shouldRestartCaptureForOrientationChange(
+    createSettings({ orientation: "landscape" }),
+    createSettings({ orientation: "portrait" }),
+    true,
+  ), true);
+  assert.equal(shouldRestartCaptureForOrientationChange(
+    createSettings({ orientation: "landscape" }),
+    createSettings({ orientation: "portrait" }),
+    false,
+  ), false);
+  assert.equal(shouldRestartCaptureForOrientationChange(
+    createSettings({ orientation: "landscape" }),
+    createSettings({ orientation: "landscape" }),
+    true,
+  ), false);
 });

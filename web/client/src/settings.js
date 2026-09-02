@@ -34,6 +34,17 @@ export function createSettings(overrides = {}) {
   };
 }
 
+export function shouldRestartCaptureForOrientationChange(
+  previousSettings,
+  nextSettings,
+  hasActiveTrack,
+) {
+  return Boolean(
+    hasActiveTrack &&
+    previousSettings?.orientation !== nextSettings?.orientation,
+  );
+}
+
 export function resolveCaptureOrientation(settings, viewport = {}) {
   if (settings?.orientation === "portrait" || settings?.orientation === "landscape") {
     return settings.orientation;

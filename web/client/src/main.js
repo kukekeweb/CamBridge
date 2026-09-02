@@ -43,6 +43,7 @@ import {
   createOutputPlan,
   createSettings,
   RESOLUTIONS,
+  shouldRestartCaptureForOrientationChange,
 } from "./settings.js";
 
 const $ = (id) => document.getElementById(id);
@@ -650,8 +651,18 @@ $("copy-constraint-json-button").addEventListener("click", () => copyConstraintP
 $("copy-constraint-csv-button").addEventListener("click", () => copyConstraintProbe(serialiseConstraintProbeCSV(constraintProbeRows), "CSV"));
 
 $("orientation-select").addEventListener("change", () => {
+  const previousSettings = latestSettings;
   const settings = readSettings();
+  const shouldRestart = shouldRestartCaptureForOrientationChange(
+    previousSettings,
+    settings,
+    Boolean(controller.track),
+  );
+  latestSettings = settings;
   renderRequested(settings);
+  if (shouldRestart && !$("start-button").disabled) {
+    $("start-button").click();
+  }
 });
 
 for (const id of ["resolution-select", "frame-rate-select", "quality-select", "camera-select"]) {
