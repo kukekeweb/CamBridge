@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <thread>
 
@@ -22,7 +23,10 @@ int wmain(int argc, wchar_t** argv) {
   cambridge::native::SharedFrameStatus initialStatus;
   (void)reader.GetStatus(&initialStatus);
   std::wcerr << L"IPC probe: producerState=" << initialStatus.producerState
-              << L" latestSequence=" << initialStatus.publishedSequence << L"\n";
+              << L" latestSequence=" << initialStatus.publishedSequence
+              << L" format=" << initialStatus.width << L"x" << initialStatus.height
+              << L" stride=" << initialStatus.stride
+              << L" bytes=" << initialStatus.frameBytes << L"\n";
   std::uint64_t count = 0;
   std::uint64_t last = 0;
   auto start = std::chrono::steady_clock::now();
@@ -30,6 +34,21 @@ int wmain(int argc, wchar_t** argv) {
   while (std::chrono::steady_clock::now() - start < std::chrono::seconds(seconds)) {
     if (reader.ReadLatest(frame)) {
       ++count;
+      if (count == 1) {
+        std::uint8_t minimum = 255;
+        std::uint8_t maximum = 0;
+        const auto lumaBytes = static_cast<std::size_t>(frame.stride) * frame.height;
+        const auto bytesToInspect = std::min(lumaBytes, frame.bytes.size());
+        for (std::size_t index = 0; index < bytesToInspect; ++index) {
+          minimum = std::min(minimum, frame.bytes[index]);
+          maximum = std::max(maximum, frame.bytes[index]);
+        }
+        std::wcout << L"IPC probe: firstFrame sequence=" << frame.sequence
+                   << L" format=" << frame.width << L"x" << frame.height
+                   << L" stride=" << frame.stride << L" bytes=" << frame.bytes.size()
+                   << L" lumaMin=" << static_cast<unsigned int>(minimum)
+                   << L" lumaMax=" << static_cast<unsigned int>(maximum) << L"\n";
+      }
       if (frame.sequence <= last) {
         std::wcerr << L"IPC probe: non-monotonic sequence\n";
         return 1;
