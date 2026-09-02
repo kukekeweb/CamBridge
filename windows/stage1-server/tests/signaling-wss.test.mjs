@@ -87,7 +87,8 @@ test("accepts same-origin signaling upgrade and relays browser/native messages",
   native.send(JSON.stringify({ type: "answer", sessionId: "s1", sdp: "v=0\r\na=mid:0" }));
   assert.deepEqual(await waitForMessage(browser), { type: "answer", sessionId: "s1", sdp: "v=0\r\na=mid:0" });
   assert.equal(events.filter((event) => event.includes("WSS connection")).length, 2);
-  assert.ok(events.some((event) => event.includes("type=hello")));
+  assert.ok(events.some((event) => event.includes("type=hello role=browser")));
+  assert.ok(events.some((event) => event.includes("type=hello role=native")));
   assert.ok(events.some((event) => event.includes("type=offer")));
   assert.ok(events.some((event) => event.includes("type=answer")));
 });

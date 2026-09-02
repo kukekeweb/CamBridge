@@ -51,7 +51,16 @@ export function attachSignalingWebSocket(server, options = {}) {
           // The broker emits the protocol error; only the message class is logged.
         }
         const result = broker.handleMessage(endpoint, message);
-        log(`WSS message id=${endpoint.id} type=${messageType} bytes=${Buffer.byteLength(message)}`);
+        let helloRole = "";
+        if (messageType === "hello") {
+          try {
+            const parsed = JSON.parse(message.toString());
+            helloRole = ` role=${typeof parsed?.role === "string" ? parsed.role : "unknown"}`;
+          } catch {
+            helloRole = " role=unknown";
+          }
+        }
+        log(`WSS message id=${endpoint.id} type=${messageType}${helloRole} bytes=${Buffer.byteLength(message)}`);
         if (!result.ok) {
           log(`WSS protocol-error id=${endpoint.id} type=${messageType} code=${result.code}`);
           sendProtocolError(webSocket, result.code);
