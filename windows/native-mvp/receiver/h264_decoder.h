@@ -31,6 +31,15 @@ struct H264DecoderMetrics {
   std::uint32_t outputStreamFlags = 0;
   std::uint32_t outputBufferSize = 0;
   std::uint32_t outputBufferAlignment = 0;
+  std::uint32_t firstOutputBufferLength = 0;
+  std::uint32_t firstOutputBufferMaxLength = 0;
+  std::uint32_t firstOutputLumaMin = 0;
+  std::uint32_t firstOutputLumaMax = 0;
+  std::uint32_t firstOutputChromaMin = 0;
+  std::uint32_t firstOutputChromaMax = 0;
+  std::uint32_t firstOutputSampleFlags = 0;
+  std::int64_t firstOutputSampleTime100ns = 0;
+  std::string firstInputSummary;
   std::uint64_t processOutputCalls = 0;
   std::uint64_t processOutputNeedMoreInput = 0;
   std::uint64_t processOutputStreamChanges = 0;

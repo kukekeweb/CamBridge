@@ -98,6 +98,56 @@ std::string MediaTypeSummary(IMFMediaType* type) {
   return result.str();
 }
 
+std::string ByteHex(const std::uint8_t* bytes, std::size_t count) {
+  if (bytes == nullptr || count == 0) return {};
+  static constexpr char kHex[] = "0123456789abcdef";
+  std::string result;
+  result.reserve(count * 2);
+  for (std::size_t index = 0; index < count; ++index) {
+    result.push_back(kHex[(bytes[index] >> 4) & 0x0f]);
+    result.push_back(kHex[bytes[index] & 0x0f]);
+  }
+  return result;
+}
+
+std::string H264InputSummary(const std::vector<std::uint8_t>& accessUnit) {
+  std::ostringstream result;
+  result << "bytes=" << accessUnit.size() << " prefix=";
+  if (accessUnit.size() >= 4 && accessUnit[0] == 0 && accessUnit[1] == 0 &&
+      accessUnit[2] == 0 && accessUnit[3] == 1) {
+    result << "annexb4";
+  } else if (accessUnit.size() >= 3 && accessUnit[0] == 0 && accessUnit[1] == 0 &&
+             accessUnit[2] == 1) {
+    result << "annexb3";
+  } else {
+    result << "other";
+  }
+  result << " first=" << ByteHex(accessUnit.data(), std::min<std::size_t>(16, accessUnit.size()));
+  result << " nalTypes=";
+  std::size_t offset = 0;
+  unsigned int nalCount = 0;
+  while (offset + 4 <= accessUnit.size() && nalCount < 12) {
+    std::size_t prefix = 0;
+    if (offset + 4 <= accessUnit.size() && accessUnit[offset] == 0 && accessUnit[offset + 1] == 0 &&
+        accessUnit[offset + 2] == 0 && accessUnit[offset + 3] == 1) {
+      prefix = 4;
+    } else if (offset + 3 <= accessUnit.size() && accessUnit[offset] == 0 &&
+               accessUnit[offset + 1] == 0 && accessUnit[offset + 2] == 1) {
+      prefix = 3;
+    } else {
+      ++offset;
+      continue;
+    }
+    const std::size_t payload = offset + prefix;
+    if (payload >= accessUnit.size()) break;
+    if (nalCount++ != 0) result << ",";
+    result << static_cast<unsigned int>(accessUnit[payload] & 0x1f);
+    offset = payload + 1;
+  }
+  if (nalCount == 0) result << "none";
+  return result.str();
+}
+
 std::string StreamChangeDescription(IMFTransform* transform) {
   if (transform == nullptr) return "transform=<null>";
   std::ostringstream result;
@@ -386,6 +436,43 @@ bool MediaFoundationH264Decoder::DrainOutput() {
       (void)contiguousBuffer->Unlock();
       return Fail("H264 decoder output is not a complete NV12 frame");
     }
+    if (metrics_.outputFrames < 3 && source != nullptr) {
+      const auto scan = [](const BYTE* data, std::size_t count,
+                           std::uint32_t* minimum, std::uint32_t* maximum) {
+        if (data == nullptr || count == 0 || minimum == nullptr || maximum == nullptr) return;
+        BYTE minValue = 255;
+        BYTE maxValue = 0;
+        for (std::size_t index = 0; index < count; ++index) {
+          minValue = (std::min)(minValue, data[index]);
+          maxValue = (std::max)(maxValue, data[index]);
+        }
+        *minimum = minValue;
+        *maximum = maxValue;
+      };
+      const std::size_t lumaScanBytes = (std::min<std::size_t>)(
+          static_cast<std::size_t>(metrics_.outputStride) * metrics_.outputHeight, 64 * 1024);
+      const std::size_t chromaOffset = static_cast<std::size_t>(metrics_.outputStride) *
+                                       metrics_.codedHeight;
+      const std::size_t chromaScanBytes =
+          (chromaOffset < length)
+              ? (std::min<std::size_t>)(static_cast<std::size_t>(metrics_.outputStride) *
+                                            (metrics_.outputHeight / 2),
+                                        64 * 1024)
+              : 0;
+      scan(source, lumaScanBytes, &metrics_.firstOutputLumaMin, &metrics_.firstOutputLumaMax);
+      scan(chromaOffset < length ? source + chromaOffset : nullptr, chromaScanBytes,
+           &metrics_.firstOutputChromaMin, &metrics_.firstOutputChromaMax);
+      metrics_.firstOutputBufferLength = length;
+      metrics_.firstOutputBufferMaxLength = maxLength;
+      DWORD sampleFlags = 0;
+      if (SUCCEEDED(output.pSample->GetSampleFlags(&sampleFlags))) {
+        metrics_.firstOutputSampleFlags = sampleFlags;
+      }
+      LONGLONG sampleTime = 0;
+      if (SUCCEEDED(output.pSample->GetSampleTime(&sampleTime))) {
+        metrics_.firstOutputSampleTime100ns = sampleTime;
+      }
+    }
     Nv12Frame frame;
     frame.width = metrics_.outputWidth;
     frame.height = metrics_.outputHeight;
@@ -422,6 +509,7 @@ bool MediaFoundationH264Decoder::SubmitAccessUnit(
   if (accessUnit.empty() || accessUnit.size() > std::numeric_limits<DWORD>::max()) {
     return Fail("empty or oversized H264 access unit");
   }
+  if (metrics_.inputAccessUnits == 0) metrics_.firstInputSummary = H264InputSummary(accessUnit);
 
   ComPtr<IMFMediaBuffer> buffer;
   HRESULT hr = MFCreateMemoryBuffer(static_cast<DWORD>(accessUnit.size()), &buffer);

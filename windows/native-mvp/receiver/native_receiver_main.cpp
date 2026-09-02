@@ -241,6 +241,13 @@ int wmain(int argc, wchar_t** argv) {
                   << " stride=" << pipelineMetrics.decoder.outputStride
                   << " hardwareDecode=" << (pipelineMetrics.decoder.hardware ? "yes" : "no")
                   << " transform=" << pipelineMetrics.decoder.selectedTransform
+                  << " firstInput=" << pipelineMetrics.decoder.firstInputSummary
+                  << " firstOutputY=" << pipelineMetrics.decoder.firstOutputLumaMin << ".."
+                  << pipelineMetrics.decoder.firstOutputLumaMax
+                  << " firstOutputUV=" << pipelineMetrics.decoder.firstOutputChromaMin << ".."
+                  << pipelineMetrics.decoder.firstOutputChromaMax
+                  << " buffer=" << pipelineMetrics.decoder.firstOutputBufferLength << "/"
+                  << pipelineMetrics.decoder.firstOutputBufferMaxLength
                   << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
                   << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
       }
@@ -292,6 +299,13 @@ int wmain(int argc, wchar_t** argv) {
               << " stride=" << pipelineMetrics.decoder.outputStride
               << " hardwareDecode=" << (pipelineMetrics.decoder.hardware ? "yes" : "no")
               << " transform=" << pipelineMetrics.decoder.selectedTransform
+              << " firstInput=" << pipelineMetrics.decoder.firstInputSummary
+              << " firstOutputY=" << pipelineMetrics.decoder.firstOutputLumaMin << ".."
+              << pipelineMetrics.decoder.firstOutputLumaMax
+              << " firstOutputUV=" << pipelineMetrics.decoder.firstOutputChromaMin << ".."
+              << pipelineMetrics.decoder.firstOutputChromaMax
+              << " buffer=" << pipelineMetrics.decoder.firstOutputBufferLength << "/"
+              << pipelineMetrics.decoder.firstOutputBufferMaxLength
               << " decodeErrors=" << pipelineMetrics.decoder.decodeErrors
               << " publishErrors=" << pipelineMetrics.publishErrors << "\n";
     mediaPipeline->Stop();
