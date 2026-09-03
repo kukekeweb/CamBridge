@@ -73,7 +73,7 @@ Media Source test: types=3 start=0x0
 - COM DLL直接ロード: 成功
 - `DllGetClassObject`: 成功
 - `IMFActivate`生成: 成功
-- media type: 3種類（1080p60 / 1080p30 / 720p60）
+- media type: 3種類（1920x1080@60 / 1920x1080@30 / 1080x1920@60）。portrait typeは既存のNV12回転変換で供給する。
 - `IMFSampleAllocatorControl` / `UsesProvidedAllocator`契約: 成功
 - Media Source start/stop: 成功
 - Windows Frame Serverからのロード: 未確認
@@ -421,3 +421,68 @@ state is expected until Safari sends an Offer. A receiver log with
 `rawRtpPackets=0`, `accessUnits=0`, and `peerState=new` proves only that no
 browser session has arrived yet. It is not evidence of a regression in this
 synthetic gate.
+
+## Bug A: Media Source pacing acceptance
+
+ユーザーが実機で実施したfresh Frame Server（PID `17600`）の検証結果を記録する。
+この結果はユーザー提供の実機ログに基づくもので、ローカルCTestの結果とは分離する。
+
+対象はSynthetic Publisher 60fps → IPC → Custom Media Source → Frame Server →
+CamBridge Virtual Camera → `IMFSourceReader` の1920x1080経路である。
+
+1秒目:
+
+```text
+RequestSample=60
+AllocateSample=60
+samplesCreated=60
+IPC new frames=60
+unique IPC sequences=60
+duplicate IPC sequence samples=0
+samplesDelivered=59
+```
+
+2秒目も`RequestSample=59`、`samplesCreated=59`、`IPC new frames=59`、
+`unique IPC sequences=59`、`duplicate IPC sequence samples=0`であった。
+IPC sequenceは`68, 69, 70, ...`と単調増加し、sample durationは`166666`
+(100ns)を維持した。
+
+sample 119では、`sampleRelative`約1.9667秒、`wallClockElapsed`約2.0259秒、
+`sampleMinusWallClock`約-59msであり、旧実装のような未来方向の巨大なtimestamp
+先行は発生しなかった。
+
+1920x1080のbuffer/data対応も次の通り一致した。
+
+```text
+negotiated=1920x1080
+IPC=1920x1080
+currentLength=3110400
+copiedBytes=3110400
+```
+
+installer内のcapture probeも`Samples received: 120`、
+`Synthetic/sample probe: 120 samples`で完了した。
+
+判定: **Bug A pacingは実機PASS**。
+
+publisher終了後の単独capture probeでは、`producerState=1`、
+`latestSequence=196`、10秒間新sequenceなし、0 samplesとなった。
+これは同一sequenceの再発行をしない新pacingの期待動作と整合する。一方、
+publisher終了後にも`producerState=1`が残る点は、producer lifecycle/state cleanupの
+別issueとして記録し、Bug Aへduplicate sampleを戻す修正は行わない。
+
+## Bug B: unsupported 720p media type
+
+Bug Aの実機PASS後に、旧実装の720p経路で次の不一致を確認した。
+
+```text
+negotiated NV12=1280x720@60
+allocated/current buffer=1382400 bytes
+IPC=1920x1080
+IPC payload=3110400 bytes
+copiedBytes=0
+```
+
+これは供給できない`1280x720@60`をadvertiseしていたことが原因である。
+Bug Bでは、供給可能なmedia typeだけを公開し、720pをsilent black sampleとして
+返さない。720p scalingは別変更として扱い、今回の最小修正には含めない。

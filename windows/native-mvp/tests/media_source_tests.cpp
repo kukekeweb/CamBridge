@@ -104,6 +104,7 @@ int wmain(int argc, wchar_t** argv) {
   DWORD typeCount = 0;
   typeHandler->GetMediaTypeCount(&typeCount);
   bool hasPortrait60 = false;
+  bool has720p60 = false;
   for (DWORD index = 0; index < typeCount; ++index) {
     ComPtr<IMFMediaType> candidate;
     if (FAILED(typeHandler->GetMediaTypeByIndex(index, &candidate))) continue;
@@ -116,6 +117,13 @@ int wmain(int argc, wchar_t** argv) {
         width == 1080 && height == 1920 && fps == 60 && denominator == 1) {
       hasPortrait60 = true;
     }
+    if (width == 1280 && height == 720 && fps == 60 && denominator == 1) {
+      has720p60 = true;
+    }
+  }
+  if (has720p60) {
+    std::wcerr << L"Media Source must not advertise unsupported 1280x720@60\n";
+    return 1;
   }
   if (!hasPortrait60) {
     std::wcerr << L"Media Source does not expose portrait 1080x1920@60\n";

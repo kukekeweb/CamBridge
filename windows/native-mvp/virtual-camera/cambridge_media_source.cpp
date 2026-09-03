@@ -292,12 +292,10 @@ HRESULT CamBridgeMediaStream::Initialize(CamBridgeMediaSource* parent) {
   if (FAILED(hr = MakeVideoType(kDefaultWidth, kDefaultHeight, 60, &type60))) return hr;
   Microsoft::WRL::ComPtr<IMFMediaType> type30;
   if (FAILED(hr = MakeVideoType(kDefaultWidth, kDefaultHeight, 30, &type30))) return hr;
-  Microsoft::WRL::ComPtr<IMFMediaType> type720;
-  if (FAILED(hr = MakeVideoType(1280, 720, 60, &type720))) return hr;
   Microsoft::WRL::ComPtr<IMFMediaType> typePortrait60;
   if (FAILED(hr = MakeVideoType(1080, 1920, 60, &typePortrait60))) return hr;
-  std::array<IMFMediaType*, 4> types{
-      type60.Get(), type30.Get(), type720.Get(), typePortrait60.Get()};
+  std::array<IMFMediaType*, 3> types{
+      type60.Get(), type30.Get(), typePortrait60.Get()};
   if (FAILED(hr = MFCreateStreamDescriptor(0, static_cast<DWORD>(types.size()), types.data(),
                                            &descriptor_))) return hr;
   if (FAILED(hr = descriptor_->SetGUID(MF_DEVICESTREAM_STREAM_CATEGORY,
